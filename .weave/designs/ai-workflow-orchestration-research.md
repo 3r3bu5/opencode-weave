@@ -253,3 +253,142 @@ Fleet already supports child sessions. Attractor adds join policies (wait_all, k
 4. **Spec-Kit's separation of "what" from "how"** is an underappreciated insight that could significantly improve Pattern's output quality.
 
 5. **StrongDM's "validation replaces code review"** claim is aspirational but directionally correct. Weave's Weft/Warp review agents are already a step in this direction — they could evolve toward scenario-based validation.
+
+---
+
+## 7. Deep Dive: The Constitution Concept
+
+### Three Layers of "Constitution"
+
+The word "constitution" appears in three distinct contexts. They operate at different layers and are complementary:
+
+| | Anthropic's Constitution | Spec-Kit's Constitution | Weave Constitution (proposed) |
+|---|---|---|---|
+| **Layer** | Model identity & values | Project architecture & standards | Project architecture & standards |
+| **Audience** | The model itself (during training) | AI coding agents working on a project | Pattern agent when generating plans |
+| **Scope** | Universal — every conversation | One project / codebase | One project / codebase |
+| **Content** | Ethics, safety, honesty, harm avoidance | TDD, max services, no ORMs, library-first | Tech stack, testing, architecture constraints |
+| **Persistence** | Baked into model weights | Checked into repo, versioned | Checked into repo, versioned |
+| **Enforcement** | Training process (internalized) | Template gate checks at planning time | Pattern reads and validates plans against it |
+| **Changes** | Anthropic revises across model versions | Team amends per project | Team amends per project |
+| **Priority ordering** | Safe > Ethical > Guidelines > Helpful | All articles are equal constraints | All articles are equal constraints |
+
+**Key insight**: Anthropic's constitution asks "What kind of entity should Claude be?" Spec-Kit's asks "What architectural principles must this codebase follow?" They're complementary — Anthropic's ensures Claude *cares about quality*, a project constitution ensures that caring translates into *specific decisions*.
+
+### Real-World Precedents
+
+Project-level "constitutions" under that exact name barely exist in the wild yet. What *does* exist is the same concept under different names:
+
+| Format | Status | Typical Size | Token Cost | Where Used |
+|--------|--------|-------------|------------|------------|
+| `.cursor/rules/*.md` | Production standard | 50-500 lines/rule | ~1-2K tokens/rule | Cursor IDE projects |
+| `AGENTS.md` | Supported, emerging | 200-800 lines | ~500-1,500 tokens | Multi-tool projects |
+| `CLAUDE.md` | Recommended by Anthropic | — | — | Almost nobody uses it yet |
+| `CONVENTIONS.md` / `ARCHITECTURE.md` | Common, human-focused | 500-5,000 lines | ~2-8K tokens | Many OSS projects |
+| `.cursorrules` (legacy) | Deprecated | Variable | Variable | Declining |
+
+**Cursor rules** are the closest production equivalent. They support 4 trigger modes:
+- **Always Apply** — injected into every prompt (≈ constitution)
+- **Apply Intelligently** — agent decides from a description
+- **Glob-scoped** — only for matching files
+- **Manual** — user @-mentions it
+
+Cursor's best practice blog recommends **under 500 lines per rule** and splitting large rules into composable pieces.
+
+### Token Cost Analysis
+
+A constitution goes into agent prompts, so every token matters.
+
+| Document Size | Estimated Tokens | Impact |
+|---------------|-----------------|--------|
+| Small (50-100 lines) | ~200-400 tokens | Negligible |
+| Medium (200-300 lines) | ~400-600 tokens | Manageable |
+| Large (500 lines) | ~1,000-2,000 tokens | Noticeable |
+| Full harness (5-10 rules) | ~3,000-10,000 tokens | Significant |
+
+**Mitigation: Prompt Caching**
+
+The Claude Code team stated directly:
+
+> "Long running agentic products like Claude Code are made feasible by prompt caching which allows us to reuse computation from previous roundtrips and significantly decrease latency and cost."
+
+With prompt caching:
+- **First request**: Full token cost
+- **Subsequent requests**: ~90% cost reduction on cached prefix
+
+A 400-token constitution that's stable across sessions effectively costs ~40 tokens after the first turn.
+
+### Practical Guidelines for Weave
+
+1. **Keep it under 500 tokens** (~60-80 lines of markdown)
+2. **Scope injection** — only Pattern needs it when generating plans. Thread, Spindle, Weft don't need architectural principles.
+3. **Prefer references over content** — "See ARCHITECTURE.md for system design" rather than inlining the architecture doc
+4. **Prompt caching makes static content cheap** — a constitution that changes quarterly costs almost nothing
+5. **Every line must earn its tokens** — closer to a `.cursor/rules` file than a legal document
+
+### Example: What a Weave Project Constitution Looks Like
+
+~60 lines, ~400 tokens — well within the safe zone:
+
+```markdown
+# Weave Constitution
+
+## Core Principles
+
+### I. Plugin Boundary
+Weave is an OpenCode plugin. All functionality MUST integrate through
+OpenCode's plugin lifecycle (hooks, agents, commands). Never bypass the
+plugin interface or depend on OpenCode internals.
+
+### II. Agent Isolation
+Each agent has a defined role, permission set, and trust level. Read-only
+agents (Thread, Spindle, Weft, Warp) MUST NOT gain write access. Pattern
+MUST only write .md files in .weave/. These boundaries are non-negotiable.
+
+### III. TypeScript + Bun
+TypeScript only, built and tested with Bun. No Node.js-specific APIs.
+Minimal dependency footprint.
+
+### IV. Test-First
+All behavioral changes MUST have corresponding tests. Write tests before
+implementation. Use bun:test.
+
+### V. Simplicity Over Abstraction
+Prefer direct, obvious code. No class hierarchies deeper than 2 levels.
+No dependency injection frameworks. If a function does one thing clearly,
+it doesn't need a pattern around it.
+
+### VI. Configuration Over Code
+User-facing behavior changes should be configurable via weave-opencode.jsonc.
+New features SHOULD have a disable mechanism (disabled_hooks, disabled_agents,
+disabled_tools).
+
+### VII. Context Window Discipline
+Every prompt, skill injection, and system message consumes tokens. Be
+parsimonious. Measure impact. Never inject large blocks without considering
+the context window budget.
+
+## Quality Gates
+
+- All PRs must pass `bun test` and `bun run typecheck`
+- New agents require: system prompt, tool permissions, test coverage
+- New hooks require: enable/disable support, test coverage
+- Plans generated by Pattern must not contradict this constitution
+
+## Governance
+
+Amendments require documented rationale and maintainer agreement.
+
+**Version**: 1.0.0 | **Ratified**: 2026-03-03
+```
+
+### Contrast with Spec-Kit's Approach
+
+| Aspect | Spec-Kit | Proposed Weave Approach |
+|--------|----------|------------------------|
+| **Format** | Generic template with `[PLACEHOLDER]` tokens | Pre-filled with real project principles |
+| **Size** | Encourages verbose multi-section documents | Hard cap ~500 tokens |
+| **Enforcement** | Plan template embeds "Constitution Check" checkboxes | Pattern reads and validates against it |
+| **Versioning** | Semantic versioning with amendment tracking | Simple version + date |
+| **Propagation** | Updates trigger sync across all templates | Only Pattern references it |
+| **Governance** | Formal amendment procedures | Lightweight — documented rationale + approval |
