@@ -571,3 +571,46 @@ Even with Loom doing upfront spec work, Pattern should still support `[NEEDS CLA
 This creates a **two-layer clarification system**:
 1. **Loom catches the obvious questions** before delegation (user-facing)
 2. **Pattern catches the technical questions** discovered during research (escalated back to Loom → user)
+
+### The Complexity Placement Problem
+
+Option B raises a valid concern: **Loom is already overloaded.** Its system prompt currently includes:
+
+- Role definition, TODO obsession rules, sidebar formatting
+- Delegation protocol + narration rules
+- Plan workflow (Pattern → Weft → Tapestry)
+- Review workflow (Weft + Warp trigger rules)
+- Style rules
+- Fleet orchestration (entire multi-session skill)
+- PR review processing, GitHub issue sync, pull request workflow
+
+Adding a full structured spec/clarify protocol on top risks **instruction dilution** — the more rules Loom has, the less reliably it follows any single one. This is the real risk, not context window size.
+
+But the alternative — exposing multiple agents to the user — is worse. The whole point of Weave's design is that the user talks to **one agent** (Loom), and Loom orchestrates. If users have to know "talk to Loom for orchestration, talk to SpecAgent for requirements," the simplicity is lost.
+
+### Resolution: Distribute the Complexity Across Layers
+
+The answer is to keep Loom as the single user-facing agent, but **distribute the spec/clarify complexity** so Loom's base prompt stays lean:
+
+| Layer | What it knows | Token cost |
+|---|---|---|
+| **Loom's base prompt** | ~15 lines: "For complex tasks, ask clarifying questions before delegating to Pattern. Structure the handoff as requirements + acceptance criteria + constraints." | ~60 tokens (always loaded) |
+| **Skill (loaded on demand)** | The full structured spec template, clarification protocol, example handoffs | ~300-500 tokens (only when needed) |
+| **Pattern's prompt** | `[NEEDS CLARIFICATION]` convention — flag unknowns, max 3 before escalating to Loom | ~40 tokens (always in Pattern's prompt) |
+
+This gives three properties:
+
+1. **Loom's base prompt grows by ~15 lines** — it knows *when* to do structured specs, not *how* (cheap, always present)
+2. **The detailed template is pay-as-you-go** — loaded via skill only when Loom determines a task needs structured planning (no cost for simple tasks)
+3. **The clarification safety net lives in Pattern** — where it belongs, since Pattern discovers technical ambiguities during codebase research
+
+### Why This Works
+
+The spec/clarify behavior is **inherently intermittent**. Most user requests are simple enough that Loom delegates directly. The structured spec workflow only triggers for complex, multi-file, architectural tasks — exactly the cases where the extra conversation is worth the overhead.
+
+This matches how Weave already handles other intermittent complexity:
+- Fleet orchestration is a skill (loaded when spawning children, not always)
+- PR review processing is a skill (loaded when processing reviews, not always)
+- The plan workflow is always in Loom's prompt because it triggers frequently
+
+The spec/clarify protocol should follow the same pattern: **lightweight trigger in the base prompt, detailed instructions in a skill.**
