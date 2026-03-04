@@ -107,6 +107,17 @@ describe("individual tapestry section builders", () => {
     expect(section).toContain("PostExecutionReview")
   })
 
+  it("buildTapestryPlanExecutionSection mentions Weft by default", () => {
+    const section = buildTapestryPlanExecutionSection()
+    expect(section).toContain("Weft")
+  })
+
+  it("buildTapestryPlanExecutionSection omits Weft when disabled", () => {
+    const section = buildTapestryPlanExecutionSection(new Set(["weft"]))
+    expect(section).not.toContain("Weft")
+    expect(section).toContain("Verification")
+  })
+
   it("buildTapestryVerificationSection mentions acceptance criteria", () => {
     expect(buildTapestryVerificationSection()).toContain("acceptance criteria")
   })

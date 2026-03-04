@@ -215,4 +215,58 @@ describe("AGENT_METADATA", () => {
     expect(reviewSection).toContain("Warp")
     expect(reviewSection).not.toContain("Weft")
   })
+
+  it("tapestry PlanExecution section omits Weft reference when weft disabled", () => {
+    const agents = createBuiltinAgents({ disabledAgents: ["weft"] })
+    const prompt = agents["tapestry"]?.prompt ?? ""
+    const planSection = prompt.slice(
+      prompt.indexOf("<PlanExecution>"),
+      prompt.indexOf("</PlanExecution>"),
+    )
+    expect(planSection).not.toContain("Weft")
+    expect(planSection).toContain("Verification")
+  })
+
+  it("tapestry PlanExecution section mentions Weft by default", () => {
+    const agents = createBuiltinAgents()
+    const prompt = agents["tapestry"]?.prompt ?? ""
+    const planSection = prompt.slice(
+      prompt.indexOf("<PlanExecution>"),
+      prompt.indexOf("</PlanExecution>"),
+    )
+    expect(planSection).toContain("Weft")
+  })
+
+  it("pattern prompt strips thread reference when thread disabled", () => {
+    const agents = createBuiltinAgents({ disabledAgents: ["thread"] })
+    const prompt = agents["pattern"]?.prompt ?? ""
+    expect(prompt).not.toContain("thread")
+    expect(prompt).not.toContain("Thread")
+    // spindle should still be present
+    expect(prompt).toContain("spindle")
+  })
+
+  it("pattern prompt strips spindle reference when spindle disabled", () => {
+    const agents = createBuiltinAgents({ disabledAgents: ["spindle"] })
+    const prompt = agents["pattern"]?.prompt ?? ""
+    expect(prompt).not.toContain("spindle")
+    expect(prompt).not.toContain("Spindle")
+    // thread should still be present
+    expect(prompt).toContain("thread")
+  })
+
+  it("weft prompt strips pattern reference when pattern disabled", () => {
+    const agents = createBuiltinAgents({ disabledAgents: ["pattern"] })
+    const prompt = agents["weft"]?.prompt ?? ""
+    expect(prompt).not.toContain("Pattern")
+    expect(prompt).not.toContain("pattern")
+  })
+
+  it("all agent prompts are unmodified when no agents disabled", () => {
+    const withDisabled = createBuiltinAgents({ disabledAgents: [] })
+    const withoutDisabled = createBuiltinAgents()
+    for (const name of ALL_AGENT_NAMES) {
+      expect(withDisabled[name]?.prompt).toBe(withoutDisabled[name]?.prompt)
+    }
+  })
 })

@@ -191,6 +191,7 @@ export function createBuiltinAgents(options: CreateBuiltinAgentsOptions = {}): R
         categories,
         disabledSkills,
         resolveSkills,
+        disabledAgents: disabledSet,
       })
     }
 

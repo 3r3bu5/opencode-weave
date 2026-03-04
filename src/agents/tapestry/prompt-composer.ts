@@ -68,7 +68,12 @@ FORMAT RULES:
 </SidebarTodos>`
 }
 
-export function buildTapestryPlanExecutionSection(): string {
+export function buildTapestryPlanExecutionSection(disabled: Set<string> = new Set()): string {
+  const hasWeft = isEnabled("weft", disabled)
+  const verifySuffix = hasWeft
+    ? " If uncertain about quality, note that Loom should invoke Weft for formal review."
+    : ""
+
   return `<PlanExecution>
 When activated by /start-work with a plan file:
 
@@ -77,7 +82,7 @@ When activated by /start-work with a plan file:
 3. For each task:
    a. Read the task description, files, and acceptance criteria
    b. Execute the work (write code, run commands, create files)
-   c. Verify: Follow the <Verification> protocol below — ALL checks must pass before marking complete. If uncertain about quality, note that Loom should invoke Weft for formal review.
+   c. Verify: Follow the <Verification> protocol below — ALL checks must pass before marking complete.${verifySuffix}
    d. Mark complete: use Edit tool to change \`- [ ]\` to \`- [x]\` in the plan file
    e. Report: "Completed task N/M: [title]"
 4. CONTINUE to the next unchecked task
@@ -180,7 +185,7 @@ export function composeTapestryPrompt(options: TapestryPromptOptions = {}): stri
     buildTapestryRoleSection(),
     buildTapestryDisciplineSection(),
     buildTapestrySidebarTodosSection(),
-    buildTapestryPlanExecutionSection(),
+    buildTapestryPlanExecutionSection(disabled),
     buildTapestryVerificationSection(),
     buildTapestryPostExecutionReviewSection(disabled),
     buildTapestryExecutionSection(),
