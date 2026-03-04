@@ -4,6 +4,7 @@ import type { WeaveConfig } from "../config/schema"
 import type { ConfigHandler } from "../managers/config-handler"
 import type { CreatedHooks } from "../hooks/create-hooks"
 import type { PluginContext } from "./types"
+import type { SessionTracker } from "../features/analytics"
 import { getAgentDisplayName } from "../shared/agent-display-names"
 import { log, logDelegation } from "../shared/log"
 import {
@@ -22,8 +23,9 @@ export function createPluginInterface(args: {
   agents: Record<string, AgentConfig>
   client?: PluginContext["client"]
   directory?: string
+  tracker?: SessionTracker
 }): PluginInterface {
-  const { pluginConfig, hooks, tools, configHandler, agents, client, directory = "" } = args
+  const { pluginConfig, hooks, tools, configHandler, agents, client, directory = "", tracker } = args
 
   return {
     tool: tools,
@@ -142,6 +144,15 @@ export function createPluginInterface(args: {
       if (event.type === "session.deleted") {
         const evt = event as { type: string; properties: { info: { id: string } } }
         clearTokenSession(evt.properties.info.id)
+
+        // Analytics: finalize session summary
+        if (tracker && hooks.analyticsEnabled) {
+          try {
+            tracker.endSession(evt.properties.info.id)
+          } catch (err) {
+            log("[analytics] Failed to end session (non-fatal)", { error: String(err) })
+          }
+        }
       }
 
       // Context window monitoring: process assistant message token usage
@@ -259,6 +270,16 @@ export function createPluginInterface(args: {
           toolCallId: input.callID,
         })
       }
+
+      // Analytics: track tool execution start
+      if (tracker && hooks.analyticsEnabled) {
+        const agentArg = input.tool === "task" && args
+          ? ((args.subagent_type as string | undefined) ??
+             (args.description as string | undefined) ??
+             "unknown")
+          : undefined
+        tracker.trackToolStart(input.sessionID, input.tool, input.callID, agentArg)
+      }
     },
 
     "tool.execute.after": async (input, _output) => {
@@ -275,6 +296,17 @@ export function createPluginInterface(args: {
           sessionId: input.sessionID,
           toolCallId: input.callID,
         })
+      }
+
+      // Analytics: track tool execution end
+      if (tracker && hooks.analyticsEnabled) {
+        const inputArgs = (input as Record<string, unknown>).args as Record<string, unknown> | undefined
+        const agentArg = input.tool === "task" && inputArgs
+          ? ((inputArgs.subagent_type as string | undefined) ??
+             (inputArgs.description as string | undefined) ??
+             "unknown")
+          : undefined
+        tracker.trackToolEnd(input.sessionID, input.tool, input.callID, agentArg)
       }
     },
   }

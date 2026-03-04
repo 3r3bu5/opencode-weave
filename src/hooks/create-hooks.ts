@@ -60,5 +60,7 @@ export function createHooks(args: {
     verificationReminder: isHookEnabled("verification-reminder")
       ? buildVerificationReminder
       : null,
+
+    analyticsEnabled: isHookEnabled("analytics"),
   }
 }

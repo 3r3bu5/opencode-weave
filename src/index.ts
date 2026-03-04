@@ -4,6 +4,7 @@ import { createManagers } from "./create-managers"
 import { createTools } from "./create-tools"
 import { createHooks } from "./hooks/create-hooks"
 import { createPluginInterface } from "./plugin/plugin-interface"
+import { createAnalytics } from "./features/analytics"
 
 const WeavePlugin: Plugin = async (ctx) => {
   const pluginConfig = loadWeaveConfig(ctx.directory, ctx)
@@ -14,6 +15,9 @@ const WeavePlugin: Plugin = async (ctx) => {
   const managers = createManagers({ ctx, pluginConfig, resolveSkills: toolsResult.resolveSkillsFn })
   const hooks = createHooks({ pluginConfig, isHookEnabled, directory: ctx.directory })
 
+  // Analytics: session tracking + project fingerprinting (fire-and-forget)
+  const analytics = isHookEnabled("analytics") ? createAnalytics(ctx.directory) : null
+
   return createPluginInterface({
     pluginConfig,
     hooks,
@@ -22,6 +26,7 @@ const WeavePlugin: Plugin = async (ctx) => {
     agents: managers.agents,
     client: ctx.client,
     directory: ctx.directory,
+    tracker: analytics?.tracker,
   })
 }
 

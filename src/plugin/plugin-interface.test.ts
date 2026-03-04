@@ -30,6 +30,8 @@ function makeHooks(overrides?: Partial<CreatedHooks>): CreatedHooks {
     patternMdOnly: null,
     startWork: null,
     workContinuation: null,
+    verificationReminder: null,
+    analyticsEnabled: false,
     ...overrides,
   }
 }
