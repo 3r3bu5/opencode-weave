@@ -13,7 +13,8 @@ import {
   getState as getTokenState,
   clearTokenSession,
 } from "../hooks"
-import { pauseWork } from "../features/work-state"
+import { pauseWork, readWorkState } from "../features/work-state"
+import { CONTINUATION_MARKER } from "../hooks/work-continuation"
 
 export function createPluginInterface(args: {
   pluginConfig: WeaveConfig
@@ -104,6 +105,32 @@ export function createPluginInterface(args: {
           } else {
             // No existing text part — create one so the context isn't lost
             parts.push({ type: "text", text: result.contextInjection })
+          }
+        }
+      }
+
+      // Auto-pause work when a user message arrives that is NOT a /start-work command
+      // and NOT a continuation prompt injected by the work-continuation hook.
+      // This breaks the infinite continuation loop that occurs when a user sends a
+      // regular message while a plan is active — without this, session.idle fires
+      // after every response and re-injects the "Continue working" prompt endlessly.
+      if (directory) {
+        const parts = _output.parts as Array<{ type: string; text?: string }> | undefined
+        const promptText =
+          parts
+            ?.filter((p) => p.type === "text" && p.text)
+            .map((p) => p.text)
+            .join("\n")
+            .trim() ?? ""
+
+        const isStartWork = promptText.includes("<session-context>")
+        const isContinuation = promptText.includes(CONTINUATION_MARKER)
+
+        if (!isStartWork && !isContinuation) {
+          const state = readWorkState(directory)
+          if (state && !state.paused) {
+            pauseWork(directory)
+            log("[work-continuation] Auto-paused: user message received during active plan", { sessionId: sessionID })
           }
         }
       }
