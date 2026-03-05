@@ -181,16 +181,13 @@ describe("AGENT_METADATA", () => {
     expect(AGENT_METADATA.loom.keyTrigger).toContain("ultrawork")
   })
 
-  it("warp has mandatory flag", () => {
-    expect(AGENT_METADATA.warp.mandatory).toBe(true)
-  })
-
-  it("mandatory agents cannot be disabled", () => {
+  it("warp can be disabled like any other agent", () => {
     const agents = createBuiltinAgents({ disabledAgents: ["warp"] })
-    expect(agents["warp"]).toBeDefined()
+    expect(agents["warp"]).toBeUndefined()
+    expect(Object.keys(agents)).toHaveLength(7)
   })
 
-  it("non-mandatory agents can be disabled", () => {
+  it("any agent can be disabled via disabledAgents", () => {
     const agents = createBuiltinAgents({ disabledAgents: ["spindle"] })
     expect(agents["spindle"]).toBeUndefined()
   })
@@ -200,7 +197,7 @@ describe("AGENT_METADATA", () => {
     const prompt = agents["loom"]?.prompt ?? ""
     expect(prompt).not.toContain("Use spindle")
     expect(prompt).not.toContain("Use thread")
-    // Warp should still be present (mandatory)
+    // Warp references should still be present (not disabled in this test)
     expect(prompt).toContain("MUST use Warp")
   })
 
@@ -211,7 +208,7 @@ describe("AGENT_METADATA", () => {
       prompt.indexOf("<PostExecutionReview>"),
       prompt.indexOf("</PostExecutionReview>"),
     )
-    // Should have Warp (mandatory) but not Weft
+    // Should have Warp (not disabled in this test) but not Weft
     expect(reviewSection).toContain("Warp")
     expect(reviewSection).not.toContain("Weft")
   })

@@ -125,7 +125,6 @@ export const AGENT_METADATA: Record<WeaveAgentName, AgentPromptMetadata> = {
   warp: {
     category: "advisor",
     cost: "EXPENSIVE",
-    mandatory: true,
     triggers: [
       { domain: "Security Review", trigger: "After changes touching auth, crypto, tokens, or input handling" },
       { domain: "Spec Compliance", trigger: "When implementing OAuth, OIDC, WebAuthn, JWT, or similar protocols" },
@@ -181,13 +180,6 @@ export function createBuiltinAgents(options: CreateBuiltinAgentsOptions = {}): R
   } = options
 
   const disabledSet = new Set(disabledAgents)
-
-  // Mandatory agents cannot be disabled — remove them from the disabled set
-  for (const [name, meta] of Object.entries(AGENT_METADATA) as [WeaveAgentName, AgentPromptMetadata][]) {
-    if (meta.mandatory) {
-      disabledSet.delete(name)
-    }
-  }
 
   const result: Record<string, AgentConfig> = {}
 
