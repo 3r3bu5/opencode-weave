@@ -598,10 +598,195 @@ describe("createPluginInterface", () => {
       expect(stateAfter?.paused).not.toBe(true)
 
       // Session goes idle — should still continue (not suppressed)
-      const idleEvent = { type: "session.idle", properties: { sessionID: "sess-compact" } }
+      const idleEvent = { type: "session.idle", properties: { sessionID: "test-plan" } }
       await iface.event({ event: idleEvent as Parameters<typeof iface.event>[0]["event"] })
 
       expect(promptAsyncCalls.length).toBe(1)
+    })
+  })
+
+  describe("auto-pause on user message during active plan", () => {
+    let tempDir: string
+
+    beforeEach(() => {
+      tempDir = join(tmpdir(), `weave-autopause-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+      const plansDir = join(tempDir, WEAVE_DIR, "plans")
+      mkdirSync(plansDir, { recursive: true })
+      const planFile = join(plansDir, "test-plan.md")
+      writeFileSync(planFile, "# Test Plan\n\n- [ ] Task 1\n- [ ] Task 2\n", "utf-8")
+      const state = createWorkState(planFile, "test-plan")
+      writeWorkState(tempDir, state)
+    })
+
+    afterEach(() => {
+      try {
+        rmSync(tempDir, { recursive: true, force: true })
+      } catch {
+        // ignore cleanup errors
+      }
+    })
+
+    it("auto-pauses work when a regular user message arrives during active plan", async () => {
+      const hooks = makeHooks({
+        startWork: (_promptText: string, _sessionId: string) => ({
+          contextInjection: null,
+          switchAgent: null,
+        }),
+        workContinuation: (sessionId: string) => checkContinuation({ sessionId, directory: tempDir }),
+      })
+
+      const promptAsyncCalls: Array<{ path: { id: string }; body: { parts: Array<{ type: string; text: string }> } }> = []
+      const mockClient = {
+        session: {
+          promptAsync: async (opts: { path: { id: string }; body: { parts: Array<{ type: string; text: string }> } }) => {
+            promptAsyncCalls.push(opts)
+          },
+        },
+      } as unknown as Parameters<typeof createPluginInterface>[0]["client"]
+
+      const iface = createPluginInterface({
+        pluginConfig: baseConfig,
+        hooks,
+        tools: emptyTools,
+        configHandler: makeMockConfigHandler(),
+        agents: {},
+        client: mockClient,
+        directory: tempDir,
+      })
+
+      // Verify state is NOT paused initially
+      expect(readWorkState(tempDir)?.paused).not.toBe(true)
+
+      // User sends a regular message (not /start-work, not continuation)
+      const output = {
+        message: {} as never,
+        parts: [{ type: "text", text: "Can you help me plan something else?" }],
+      }
+      await iface["chat.message"]({ sessionID: "sess-user" }, output)
+
+      // State should now be paused
+      expect(readWorkState(tempDir)?.paused).toBe(true)
+
+      // Session goes idle — continuation should be suppressed because state is paused
+      const idleEvent = { type: "session.idle", properties: { sessionID: "sess-user" } }
+      await iface.event({ event: idleEvent as Parameters<typeof iface.event>[0]["event"] })
+
+      expect(promptAsyncCalls.length).toBe(0)
+    })
+
+    it("does NOT auto-pause when message contains continuation marker", async () => {
+      const { CONTINUATION_MARKER } = await import("../hooks/work-continuation")
+
+      const hooks = makeHooks({
+        startWork: (_promptText: string, _sessionId: string) => ({
+          contextInjection: null,
+          switchAgent: null,
+        }),
+        workContinuation: (sessionId: string) => checkContinuation({ sessionId, directory: tempDir }),
+      })
+
+      const promptAsyncCalls: Array<{ path: { id: string }; body: { parts: Array<{ type: string; text: string }> } }> = []
+      const mockClient = {
+        session: {
+          promptAsync: async (opts: { path: { id: string }; body: { parts: Array<{ type: string; text: string }> } }) => {
+            promptAsyncCalls.push(opts)
+          },
+        },
+      } as unknown as Parameters<typeof createPluginInterface>[0]["client"]
+
+      const iface = createPluginInterface({
+        pluginConfig: baseConfig,
+        hooks,
+        tools: emptyTools,
+        configHandler: makeMockConfigHandler(),
+        agents: {},
+        client: mockClient,
+        directory: tempDir,
+      })
+
+      // Simulate a continuation-injected message (contains the marker)
+      const output = {
+        message: {} as never,
+        parts: [{ type: "text", text: `${CONTINUATION_MARKER}\nYou have an active work plan with incomplete tasks. Continue working.` }],
+      }
+      await iface["chat.message"]({ sessionID: "sess-cont" }, output)
+
+      // State should NOT be paused — continuation messages should not trigger auto-pause
+      expect(readWorkState(tempDir)?.paused).not.toBe(true)
+    })
+
+    it("does NOT auto-pause when message is a /start-work command", async () => {
+      const hooks = makeHooks({
+        startWork: (_promptText: string, _sessionId: string) => ({
+          contextInjection: null,
+          switchAgent: null,
+        }),
+        workContinuation: (sessionId: string) => checkContinuation({ sessionId, directory: tempDir }),
+      })
+
+      const iface = createPluginInterface({
+        pluginConfig: baseConfig,
+        hooks,
+        tools: emptyTools,
+        configHandler: makeMockConfigHandler(),
+        agents: {},
+        directory: tempDir,
+      })
+
+      // Simulate a /start-work command message (contains <session-context>)
+      const output = {
+        message: {} as never,
+        parts: [{ type: "text", text: "<session-context>Session ID: sess_test  Timestamp: 2026-01-01</session-context>" }],
+      }
+      await iface["chat.message"]({ sessionID: "sess-sw" }, output)
+
+      // State should NOT be paused — /start-work should not trigger auto-pause
+      expect(readWorkState(tempDir)?.paused).not.toBe(true)
+    })
+
+    it("breaks the infinite continuation loop: user message → auto-pause → idle → no continuation", async () => {
+      const hooks = makeHooks({
+        startWork: (_promptText: string, _sessionId: string) => ({
+          contextInjection: null,
+          switchAgent: null,
+        }),
+        workContinuation: (sessionId: string) => checkContinuation({ sessionId, directory: tempDir }),
+      })
+
+      const promptAsyncCalls: Array<{ path: { id: string }; body: { parts: Array<{ type: string; text: string }> } }> = []
+      const mockClient = {
+        session: {
+          promptAsync: async (opts: { path: { id: string }; body: { parts: Array<{ type: string; text: string }> } }) => {
+            promptAsyncCalls.push(opts)
+          },
+        },
+      } as unknown as Parameters<typeof createPluginInterface>[0]["client"]
+
+      const iface = createPluginInterface({
+        pluginConfig: baseConfig,
+        hooks,
+        tools: emptyTools,
+        configHandler: makeMockConfigHandler(),
+        agents: {},
+        client: mockClient,
+        directory: tempDir,
+      })
+
+      // User sends a regular message while plan is active
+      const output = {
+        message: {} as never,
+        parts: [{ type: "text", text: "Create a plan for feature X" }],
+      }
+      await iface["chat.message"]({ sessionID: "sess-loop" }, output)
+
+      // Simulate multiple idle events (the loop scenario)
+      for (let i = 0; i < 5; i++) {
+        const idleEvent = { type: "session.idle", properties: { sessionID: "sess-loop" } }
+        await iface.event({ event: idleEvent as Parameters<typeof iface.event>[0]["event"] })
+      }
+
+      // Zero continuation prompts should have been injected — the loop is broken
+      expect(promptAsyncCalls.length).toBe(0)
     })
   })
 })

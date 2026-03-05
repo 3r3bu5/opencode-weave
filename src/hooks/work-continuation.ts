@@ -3,7 +3,18 @@
  * and returns a continuation prompt to keep the executor going.
  */
 
-import { readWorkState, getPlanProgress } from "../features/work-state"
+import { readWorkState, writeWorkState, getPlanProgress } from "../features/work-state"
+
+/**
+ * Marker embedded in continuation prompts so that `chat.message` can distinguish
+ * continuation-injected messages from user-initiated messages.
+ * When a user message arrives WITHOUT this marker (and is not a /start-work command),
+ * the plugin auto-pauses work to prevent the infinite continuation loop.
+ */
+export const CONTINUATION_MARKER = "<!-- weave:continuation -->"
+
+/** Maximum consecutive continuations without progress before auto-pausing */
+export const MAX_STALE_CONTINUATIONS = 3
 
 export interface ContinuationInput {
   sessionId: string
@@ -31,14 +42,45 @@ export function checkContinuation(input: ContinuationInput): ContinuationResult 
     return { continuationPrompt: null }
   }
 
+  // Session scoping: only fire continuations for sessions that are working on this plan.
+  // Empty session_ids (legacy states) are allowed through gracefully.
+  if (state.session_ids.length > 0 && !state.session_ids.includes(input.sessionId)) {
+    return { continuationPrompt: null }
+  }
+
   const progress = getPlanProgress(state.active_plan)
   if (progress.isComplete) {
     return { continuationPrompt: null }
   }
 
+  // Stale progress detection: compare current progress to the last-seen snapshot.
+  // If progress hasn't changed after MAX_STALE_CONTINUATIONS consecutive calls, auto-pause.
+  if (state.continuation_completed_snapshot === undefined) {
+    // First continuation call — initialize tracking fields
+    state.continuation_completed_snapshot = progress.completed
+    state.stale_continuation_count = 0
+    writeWorkState(directory, state)
+  } else if (progress.completed > state.continuation_completed_snapshot) {
+    // Progress was made — reset stale counter
+    state.continuation_completed_snapshot = progress.completed
+    state.stale_continuation_count = 0
+    writeWorkState(directory, state)
+  } else {
+    // No progress — increment stale counter
+    state.stale_continuation_count = (state.stale_continuation_count ?? 0) + 1
+    if (state.stale_continuation_count >= MAX_STALE_CONTINUATIONS) {
+      // Auto-pause: inline write to preserve stale-tracking fields
+      state.paused = true
+      writeWorkState(directory, state)
+      return { continuationPrompt: null }
+    }
+    writeWorkState(directory, state)
+  }
+
   const remaining = progress.total - progress.completed
   return {
-    continuationPrompt: `You have an active work plan with incomplete tasks. Continue working.
+    continuationPrompt: `${CONTINUATION_MARKER}
+You have an active work plan with incomplete tasks. Continue working.
 
 **Plan**: ${state.plan_name}
 **File**: ${state.active_plan}

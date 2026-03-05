@@ -17,6 +17,10 @@ export interface WorkState {
   start_sha?: string
   /** Whether work has been paused by a user interrupt; continuation is suppressed while true */
   paused?: boolean
+  /** The `completed` count from getPlanProgress() at the time of the last continuation prompt */
+  continuation_completed_snapshot?: number
+  /** How many consecutive continuations have fired without progress changing */
+  stale_continuation_count?: number
 }
 
 /**
