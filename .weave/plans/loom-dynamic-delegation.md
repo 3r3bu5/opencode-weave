@@ -41,17 +41,17 @@ Custom agents defined in `weave-opencode.json` with `triggers` are registered in
 Make Loom aware of custom agent triggers so it can delegate to them appropriately.
 
 ### Deliverables
-- [ ] Custom agent triggers appear in Loom's system prompt when configured
-- [ ] No prompt change when no custom agents are configured (zero-custom-agents invariant)
-- [ ] Custom agents respect `disabled_agents` filtering
-- [ ] All existing tests continue to pass unchanged
+- [x] Custom agent triggers appear in Loom's system prompt when configured
+- [x] No prompt change when no custom agents are configured (zero-custom-agents invariant)
+- [x] Custom agents respect `disabled_agents` filtering
+- [x] All existing tests continue to pass unchanged
 
 ### Definition of Done
-- [ ] `bun test src/agents/loom/prompt-composer.test.ts` passes
-- [ ] `bun test src/agents/loom/index.test.ts` passes
-- [ ] `bun test src/agents/dynamic-prompt-builder.test.ts` passes
-- [ ] `bun test` (full suite) passes
-- [ ] Manual verification: composing a prompt with custom agent metadata produces delegation table entries
+- [x] `bun test src/agents/loom/prompt-composer.test.ts` passes
+- [x] `bun test src/agents/loom/index.test.ts` passes
+- [x] `bun test src/agents/dynamic-prompt-builder.test.ts` passes
+- [x] `bun test` (full suite) passes
+- [x] Manual verification: composing a prompt with custom agent metadata produces delegation table entries
 
 ### Guardrails (Must NOT)
 - Must NOT modify existing hardcoded section builders (`buildDelegationSection`, `buildPlanWorkflowSection`, etc.)
@@ -63,7 +63,7 @@ Make Loom aware of custom agent triggers so it can delegate to them appropriatel
 
 ## TODOs
 
-- [ ] 1. **Extend `LoomPromptOptions` interface to accept custom agent metadata**
+- [x] 1. **Extend `LoomPromptOptions` interface to accept custom agent metadata**
   **What**: Add an optional `customAgents` field to the `LoomPromptOptions` interface in `prompt-composer.ts`. This field carries an array of `AvailableAgent` objects representing custom agents with their metadata.
   **Files**: `src/agents/loom/prompt-composer.ts`
   **Changes**:
@@ -80,7 +80,7 @@ Make Loom aware of custom agent triggers so it can delegate to them appropriatel
   ```
   **Acceptance**: Interface compiles. No runtime behavior change yet. Existing callers still work (field is optional).
 
-- [ ] 2. **Add a `buildCustomAgentDelegationSection()` function in `prompt-composer.ts`**
+- [x] 2. **Add a `buildCustomAgentDelegationSection()` function in `prompt-composer.ts`**
   **What**: Create a new section builder that takes `AvailableAgent[]` and the `disabledAgents` set, filters out disabled agents, and produces a `<CustomDelegation>` XML section using `buildDelegationTable()` from `dynamic-prompt-builder.ts`. Returns empty string if no custom agents remain after filtering.
   **Files**: `src/agents/loom/prompt-composer.ts`
   **Changes**:
@@ -107,7 +107,7 @@ Make Loom aware of custom agent triggers so it can delegate to them appropriatel
   ```
   **Acceptance**: Function returns empty string for empty array. Function returns formatted section for non-empty array. Function filters out disabled agents.
 
-- [ ] 3. **Wire `buildCustomAgentDelegationSection()` into `composeLoomPrompt()`**
+- [x] 3. **Wire `buildCustomAgentDelegationSection()` into `composeLoomPrompt()`**
   **What**: Insert the custom delegation section into the sections array in `composeLoomPrompt()`, positioned after `buildDelegationNarrationSection()` and before `buildPlanWorkflowSection()`. Only call it when `customAgents` is provided and non-empty.
   **Files**: `src/agents/loom/prompt-composer.ts`
   **Changes**: In `composeLoomPrompt()`, extract `customAgents` from options and add the new section to the sections array:
@@ -135,7 +135,7 @@ Make Loom aware of custom agent triggers so it can delegate to them appropriatel
   ```
   **Acceptance**: When `customAgents` is empty or undefined, `composeLoomPrompt()` output is identical to before (empty string filtered out). When custom agents are provided, `<CustomDelegation>` section appears between `</DelegationNarration>` and `<PlanWorkflow>`.
 
-- [ ] 4. **Thread custom agent metadata through `createLoomAgentWithOptions()`**
+- [x] 4. **Thread custom agent metadata through `createLoomAgentWithOptions()`**
   **What**: Add a `customAgents` parameter to `createLoomAgentWithOptions()` and pass it to `composeLoomPrompt()`.
   **Files**: `src/agents/loom/index.ts`
   **Changes**:
@@ -162,7 +162,7 @@ Make Loom aware of custom agent triggers so it can delegate to them appropriatel
   Also re-export `AvailableAgent` type from `index.ts` if needed by callers.
   **Acceptance**: When called without `customAgents`, behavior is identical. When called with custom agents, prompt includes the custom delegation section.
 
-- [ ] 5. **Build `AvailableAgent[]` from custom metadata in `createBuiltinAgents()` and pass to Loom**
+- [x] 5. **Build `AvailableAgent[]` from custom metadata in `createBuiltinAgents()` and pass to Loom**
   **What**: In `createBuiltinAgents()` in `builtin-agents.ts`, after the main agent loop, collect custom agent metadata from `CUSTOM_AGENT_METADATA` and convert it to `AvailableAgent[]`. Pass this to `createLoomAgentWithOptions()`.
   **Files**: `src/agents/builtin-agents.ts`
   **Changes**:
@@ -240,7 +240,7 @@ Make Loom aware of custom agent triggers so it can delegate to them appropriatel
   ```
   **Acceptance**: When custom agents are configured, Loom's prompt contains `<CustomDelegation>` with their triggers. When no custom agents are configured, Loom's prompt is identical to before.
 
-- [ ] 6. **Add unit tests for `buildCustomAgentDelegationSection()`**
+- [x] 6. **Add unit tests for `buildCustomAgentDelegationSection()`**
   **What**: Add tests to `prompt-composer.test.ts` verifying the new section builder.
   **Files**: `src/agents/loom/prompt-composer.test.ts`
   **Tests to add**:
@@ -290,7 +290,7 @@ Make Loom aware of custom agent triggers so it can delegate to them appropriatel
   ```
   **Acceptance**: All new tests pass.
 
-- [ ] 7. **Add integration tests for `composeLoomPrompt()` with custom agents**
+- [x] 7. **Add integration tests for `composeLoomPrompt()` with custom agents**
   **What**: Add tests to `prompt-composer.test.ts` verifying that the composed prompt includes custom delegation when custom agents are provided, and is unchanged when they aren't.
   **Files**: `src/agents/loom/prompt-composer.test.ts`
   **Tests to add**:
@@ -352,7 +352,7 @@ Make Loom aware of custom agent triggers so it can delegate to them appropriatel
   ```
   **Acceptance**: All new tests pass. Existing tests remain unchanged and passing.
 
-- [ ] 8. **Add test for `createLoomAgentWithOptions()` with custom agents**
+- [x] 8. **Add test for `createLoomAgentWithOptions()` with custom agents**
   **What**: Add a test to `index.test.ts` verifying that passing custom agents results in them appearing in the prompt.
   **Files**: `src/agents/loom/index.test.ts`
   **Tests to add**:
@@ -402,14 +402,14 @@ TODOs 1–3 are the core prompt-composer changes. TODO 4 is the Loom index bridg
 
 ## Verification
 
-- [ ] `bun test src/agents/loom/prompt-composer.test.ts` — all existing + new tests pass
-- [ ] `bun test src/agents/loom/index.test.ts` — all existing + new tests pass
-- [ ] `bun test src/agents/dynamic-prompt-builder.test.ts` — all existing tests pass (no changes to this file)
-- [ ] `bun test src/agents/builtin-agents.test.ts` — if exists, all tests pass
-- [ ] `bun test src/create-managers.test.ts` — if exists, all tests pass
-- [ ] `bun test` — full suite, no regressions
-- [ ] `bun run build` or `bunx tsc --noEmit` — no type errors
-- [ ] Manual spot check: call `composeLoomPrompt({ customAgents: [{ name: "x", description: "x", metadata: { category: "specialist", cost: "CHEAP", triggers: [{ domain: "D", trigger: "T" }] } }] })` and verify output contains `<CustomDelegation>` with `**D** → \`x\` — T`
+- [x] `bun test src/agents/loom/prompt-composer.test.ts` — all existing + new tests pass
+- [x] `bun test src/agents/loom/index.test.ts` — all existing + new tests pass
+- [x] `bun test src/agents/dynamic-prompt-builder.test.ts` — all existing tests pass (no changes to this file)
+- [x] `bun test src/agents/builtin-agents.test.ts` — if exists, all tests pass
+- [x] `bun test src/create-managers.test.ts` — if exists, all tests pass
+- [x] `bun test` — full suite, no regressions
+- [x] `bun run build` or `bunx tsc --noEmit` — no type errors
+- [x] Manual spot check: call `composeLoomPrompt({ customAgents: [{ name: "x", description: "x", metadata: { category: "specialist", cost: "CHEAP", triggers: [{ domain: "D", trigger: "T" }] } }] })` and verify output contains `<CustomDelegation>` with `**D** → \`x\` — T`
 
 ## Risks & Mitigations
 
