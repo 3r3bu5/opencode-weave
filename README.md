@@ -9,6 +9,7 @@ Weave is a lean OpenCode plugin with multi-agent orchestration. It provides a co
 ## Table of Contents
 
 - [Overview](#overview)
+- [Documentation](#documentation)
 - [Agents](#agents)
   - [Agent Modes](#agent-modes)
   - [Agent Details](#agent-details)
@@ -46,6 +47,10 @@ Weave is a lean OpenCode plugin with multi-agent orchestration. It provides a co
 - **Context window monitoring** to track token usage and suggest recovery strategies when limits are approached.
 - **Tool permissions** enforced per-agent to ensure safety and prevent unauthorized file modifications.
 - **JSONC configuration** supporting comments and trailing commas with hierarchical user and project-level merging.
+
+## Documentation
+
+Visit [tryweave.io](https://tryweave.io) for more information, or head straight to the [documentation](https://tryweave.io/docs/) for detailed guides on setup, configuration, and usage.
 
 ## Agents
 
