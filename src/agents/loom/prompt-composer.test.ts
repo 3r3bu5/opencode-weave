@@ -9,8 +9,10 @@ import {
   buildPlanWorkflowSection,
   buildReviewWorkflowSection,
   buildStyleSection,
+  buildCustomAgentDelegationSection,
 } from "./prompt-composer"
 import type { ProjectFingerprint } from "../../features/analytics/types"
+import type { AvailableAgent } from "../dynamic-prompt-builder"
 
 describe("composeLoomPrompt", () => {
   it("produces a non-empty prompt with default options", () => {
@@ -243,5 +245,157 @@ describe("individual section builders", () => {
 
   it("buildStyleSection contains Dense > verbose", () => {
     expect(buildStyleSection()).toContain("Dense > verbose")
+  })
+})
+
+describe("buildCustomAgentDelegationSection", () => {
+  const makeCustomAgent = (name: string, domain: string, trigger: string): AvailableAgent => ({
+    name,
+    description: `${name} agent`,
+    metadata: {
+      category: "specialist",
+      cost: "CHEAP",
+      triggers: [{ domain, trigger }],
+    },
+  })
+
+  it("returns empty string when no custom agents", () => {
+    expect(buildCustomAgentDelegationSection([], new Set())).toBe("")
+  })
+
+  it("returns formatted section for custom agents", () => {
+    const agents = [makeCustomAgent("code-reviewer", "Code Review", "Code quality review")]
+    const result = buildCustomAgentDelegationSection(agents, new Set())
+    expect(result).toContain("<CustomDelegation>")
+    expect(result).toContain("</CustomDelegation>")
+    expect(result).toContain("Code Review")
+    expect(result).toContain("`code-reviewer`")
+  })
+
+  it("filters out disabled custom agents", () => {
+    const agents = [
+      makeCustomAgent("code-reviewer", "Code Review", "Quality review"),
+      makeCustomAgent("doc-writer", "Documentation", "Write docs"),
+    ]
+    const result = buildCustomAgentDelegationSection(agents, new Set(["code-reviewer"]))
+    expect(result).not.toContain("code-reviewer")
+    expect(result).toContain("doc-writer")
+  })
+
+  it("returns empty string when all custom agents are disabled", () => {
+    const agents = [makeCustomAgent("code-reviewer", "Code Review", "Quality review")]
+    expect(buildCustomAgentDelegationSection(agents, new Set(["code-reviewer"]))).toBe("")
+  })
+
+  it("includes multiple custom agents in the table", () => {
+    const agents = [
+      makeCustomAgent("code-reviewer", "Code Review", "Quality review"),
+      makeCustomAgent("compliance", "Compliance", "License checks"),
+    ]
+    const result = buildCustomAgentDelegationSection(agents, new Set())
+    expect(result).toContain("`code-reviewer`")
+    expect(result).toContain("`compliance`")
+    expect(result).toContain("Code Review")
+    expect(result).toContain("Compliance")
+  })
+})
+
+describe("composeLoomPrompt with custom agents", () => {
+  it("does not include CustomDelegation when no custom agents provided", () => {
+    const prompt = composeLoomPrompt()
+    expect(prompt).not.toContain("<CustomDelegation>")
+  })
+
+  it("does not include CustomDelegation when custom agents array is empty", () => {
+    const prompt = composeLoomPrompt({ customAgents: [] })
+    expect(prompt).not.toContain("<CustomDelegation>")
+  })
+
+  it("includes CustomDelegation section when custom agents provided", () => {
+    const prompt = composeLoomPrompt({
+      customAgents: [{
+        name: "code-reviewer",
+        description: "Reviews code quality",
+        metadata: {
+          category: "advisor",
+          cost: "CHEAP",
+          triggers: [{ domain: "Code Review", trigger: "Code quality review and best practices" }],
+        },
+      }],
+    })
+    expect(prompt).toContain("<CustomDelegation>")
+    expect(prompt).toContain("Code Review")
+    expect(prompt).toContain("`code-reviewer`")
+    expect(prompt).toContain("</CustomDelegation>")
+  })
+
+  it("places CustomDelegation between DelegationNarration and PlanWorkflow", () => {
+    const prompt = composeLoomPrompt({
+      customAgents: [{
+        name: "test-agent",
+        description: "Test agent",
+        metadata: {
+          category: "specialist",
+          cost: "CHEAP",
+          triggers: [{ domain: "Testing", trigger: "Run tests" }],
+        },
+      }],
+    })
+    const narrationEnd = prompt.indexOf("</DelegationNarration>")
+    const customStart = prompt.indexOf("<CustomDelegation>")
+    const planStart = prompt.indexOf("<PlanWorkflow>")
+    expect(customStart).toBeGreaterThan(narrationEnd)
+    expect(customStart).toBeLessThan(planStart)
+  })
+
+  it("produces identical output to default when customAgents is empty", () => {
+    const defaultPrompt = composeLoomPrompt()
+    const withEmptyCustom = composeLoomPrompt({ customAgents: [] })
+    expect(withEmptyCustom).toBe(defaultPrompt)
+  })
+
+  it("filters disabled custom agents from the section", () => {
+    const prompt = composeLoomPrompt({
+      customAgents: [
+        {
+          name: "code-reviewer",
+          description: "Reviews code",
+          metadata: {
+            category: "advisor",
+            cost: "CHEAP",
+            triggers: [{ domain: "Code Review", trigger: "Quality review" }],
+          },
+        },
+        {
+          name: "doc-writer",
+          description: "Writes docs",
+          metadata: {
+            category: "utility",
+            cost: "CHEAP",
+            triggers: [{ domain: "Docs", trigger: "Documentation writing" }],
+          },
+        },
+      ],
+      disabledAgents: new Set(["code-reviewer"]),
+    })
+    expect(prompt).toContain("<CustomDelegation>")
+    expect(prompt).not.toContain("code-reviewer")
+    expect(prompt).toContain("doc-writer")
+  })
+
+  it("omits CustomDelegation entirely when all custom agents are disabled", () => {
+    const prompt = composeLoomPrompt({
+      customAgents: [{
+        name: "code-reviewer",
+        description: "Reviews code",
+        metadata: {
+          category: "advisor",
+          cost: "CHEAP",
+          triggers: [{ domain: "Code Review", trigger: "Quality review" }],
+        },
+      }],
+      disabledAgents: new Set(["code-reviewer"]),
+    })
+    expect(prompt).not.toContain("<CustomDelegation>")
   })
 })

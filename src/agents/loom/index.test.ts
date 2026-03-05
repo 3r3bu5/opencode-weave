@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test"
-import { createLoomAgent } from "./index"
+import { createLoomAgent, createLoomAgentWithOptions } from "./index"
 
 describe("createLoomAgent", () => {
   it("is a callable factory", () => {
@@ -133,5 +133,94 @@ describe("createLoomAgent", () => {
     expect(reviewWorkflow).toContain("Post-Plan-Execution Review")
     expect(reviewWorkflow).toContain("Ad-Hoc Review")
     expect(reviewWorkflow).toContain("Tapestry invokes Weft and Warp")
+  })
+})
+
+describe("createLoomAgentWithOptions", () => {
+  it("includes custom agent triggers in prompt when provided", () => {
+    const config = createLoomAgentWithOptions("claude-opus-4", undefined, null, [{
+      name: "code-reviewer",
+      description: "Reviews code",
+      metadata: {
+        category: "advisor",
+        cost: "CHEAP",
+        triggers: [{ domain: "Code Review", trigger: "Code quality review" }],
+      },
+    }])
+    expect(config.prompt).toContain("<CustomDelegation>")
+    expect(config.prompt).toContain("code-reviewer")
+    expect(config.prompt).toContain("Code Review")
+  })
+
+  it("returns default prompt when no custom agents, disabled, or fingerprint", () => {
+    const config = createLoomAgentWithOptions("claude-opus-4")
+    expect(config.prompt).not.toContain("<CustomDelegation>")
+  })
+
+  it("returns default prompt with empty custom agents array", () => {
+    const config = createLoomAgentWithOptions("claude-opus-4", undefined, null, [])
+    expect(config.prompt).not.toContain("<CustomDelegation>")
+  })
+
+  it("includes multiple custom agents in delegation table", () => {
+    const config = createLoomAgentWithOptions("claude-opus-4", undefined, null, [
+      {
+        name: "code-reviewer",
+        description: "Reviews code",
+        metadata: {
+          category: "advisor",
+          cost: "CHEAP",
+          triggers: [{ domain: "Code Review", trigger: "Quality review" }],
+        },
+      },
+      {
+        name: "compliance",
+        description: "Checks compliance",
+        metadata: {
+          category: "advisor",
+          cost: "CHEAP",
+          triggers: [{ domain: "Compliance", trigger: "License checks" }],
+        },
+      },
+    ])
+    expect(config.prompt).toContain("code-reviewer")
+    expect(config.prompt).toContain("compliance")
+    expect(config.prompt).toContain("Code Review")
+    expect(config.prompt).toContain("Compliance")
+  })
+
+  it("combines custom agents with fingerprint and disabled agents", () => {
+    const config = createLoomAgentWithOptions(
+      "claude-opus-4",
+      new Set(["spindle"]),
+      {
+        generatedAt: new Date().toISOString(),
+        stack: [{ name: "bun", confidence: "high", evidence: "bun.lockb" }],
+        isMonorepo: false,
+        primaryLanguage: "typescript",
+        packageManager: "bun",
+      },
+      [{
+        name: "test-agent",
+        description: "Test agent",
+        metadata: {
+          category: "specialist",
+          cost: "CHEAP",
+          triggers: [{ domain: "Testing", trigger: "Run tests" }],
+        },
+      }],
+    )
+    expect(config.prompt).toContain("<CustomDelegation>")
+    expect(config.prompt).toContain("<ProjectContext>")
+    expect(config.prompt).not.toContain("Use spindle")
+  })
+
+  it("sets mode to primary", () => {
+    const config = createLoomAgentWithOptions("claude-opus-4", undefined, null, [{
+      name: "test",
+      description: "Test",
+      metadata: { category: "utility", cost: "CHEAP", triggers: [{ domain: "Test", trigger: "test" }] },
+    }])
+    expect(config.mode).toBe("primary")
   })
 })

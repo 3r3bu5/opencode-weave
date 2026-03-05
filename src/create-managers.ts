@@ -3,6 +3,7 @@ import type { AgentConfig } from "@opencode-ai/sdk"
 import type { WeaveConfig } from "./config/schema"
 import type { ResolveSkillsFn } from "./agents/agent-builder"
 import type { ProjectFingerprint } from "./features/analytics/types"
+import type { AvailableAgent } from "./agents/dynamic-prompt-builder"
 import { ConfigHandler } from "./managers/config-handler"
 import { BackgroundManager } from "./managers/background-manager"
 import { SkillMcpManager } from "./managers/skill-mcp-manager"
@@ -25,14 +26,31 @@ export function createManagers(options: {
 }): WeaveManagers {
   const { pluginConfig, resolveSkills, fingerprint, configDir } = options
 
+  // Step 1: Build custom agent metadata FIRST so Loom's prompt can include triggers
+  const customAgentMetadata: AvailableAgent[] = []
+  if (pluginConfig.custom_agents) {
+    const disabledSet = new Set(pluginConfig.disabled_agents ?? [])
+    for (const [name, customConfig] of Object.entries(pluginConfig.custom_agents)) {
+      if (disabledSet.has(name)) continue
+      const metadata = buildCustomAgentMetadata(name, customConfig)
+      customAgentMetadata.push({
+        name,
+        description: customConfig.description ?? customConfig.display_name ?? name,
+        metadata,
+      })
+    }
+  }
+
+  // Step 2: Build builtins WITH custom agent metadata for Loom's prompt
   const agents = createBuiltinAgents({
     disabledAgents: pluginConfig.disabled_agents,
     agentOverrides: pluginConfig.agents,
     resolveSkills,
     fingerprint,
+    customAgentMetadata,
   })
 
-  // Register custom agents from config
+  // Step 3: Build custom agent configs and register metadata
   if (pluginConfig.custom_agents) {
     const disabledSet = new Set(pluginConfig.disabled_agents ?? [])
     for (const [name, customConfig] of Object.entries(pluginConfig.custom_agents)) {

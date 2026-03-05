@@ -13,6 +13,7 @@ import type { AgentFactory, AgentPromptMetadata, WeaveAgentName } from "./types"
 import type { CategoriesConfig, AgentOverrideConfig } from "../config/schema"
 import type { ResolveSkillsFn } from "./agent-builder"
 import type { ProjectFingerprint } from "../features/analytics/types"
+import type { AvailableAgent } from "./dynamic-prompt-builder"
 
 export interface CreateBuiltinAgentsOptions {
   disabledAgents?: string[]
@@ -25,6 +26,8 @@ export interface CreateBuiltinAgentsOptions {
   resolveSkills?: ResolveSkillsFn
   /** Project fingerprint for injecting project context into agent prompts */
   fingerprint?: ProjectFingerprint | null
+  /** Custom agent metadata for Loom's dynamic delegation prompt */
+  customAgentMetadata?: AvailableAgent[]
 }
 
 const AGENT_FACTORIES: Record<WeaveAgentName, AgentFactory> = {
@@ -177,6 +180,7 @@ export function createBuiltinAgents(options: CreateBuiltinAgentsOptions = {}): R
     disabledSkills,
     resolveSkills,
     fingerprint,
+    customAgentMetadata,
   } = options
 
   const disabledSet = new Set(disabledAgents)
@@ -201,7 +205,7 @@ export function createBuiltinAgents(options: CreateBuiltinAgentsOptions = {}): R
     // so their prompts conditionally omit references to disabled agents
     let built: AgentConfig
     if (name === "loom") {
-      built = createLoomAgentWithOptions(resolvedModel, disabledSet, fingerprint)
+      built = createLoomAgentWithOptions(resolvedModel, disabledSet, fingerprint, customAgentMetadata)
     } else if (name === "tapestry") {
       built = createTapestryAgentWithOptions(resolvedModel, disabledSet)
     } else {

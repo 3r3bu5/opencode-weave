@@ -7,7 +7,8 @@
  */
 
 import type { ProjectFingerprint } from "../../features/analytics/types"
-import { buildProjectContextSection } from "../dynamic-prompt-builder"
+import { buildProjectContextSection, buildDelegationTable } from "../dynamic-prompt-builder"
+import type { AvailableAgent } from "../dynamic-prompt-builder"
 import { isAgentEnabled } from "../prompt-utils"
 
 export interface LoomPromptOptions {
@@ -15,6 +16,8 @@ export interface LoomPromptOptions {
   disabledAgents?: Set<string>
   /** Project fingerprint for injecting project context into the prompt */
   fingerprint?: ProjectFingerprint | null
+  /** Custom agent metadata for dynamic delegation sections */
+  customAgents?: AvailableAgent[]
 }
 
 export function buildRoleSection(): string {
@@ -273,12 +276,35 @@ export function buildStyleSection(): string {
 }
 
 /**
+ * Build a delegation section for custom agents.
+ * Returns empty string if no enabled custom agents exist.
+ */
+export function buildCustomAgentDelegationSection(
+  customAgents: AvailableAgent[],
+  disabled: Set<string>,
+): string {
+  const enabledAgents = customAgents.filter((a) => isAgentEnabled(a.name, disabled))
+  if (enabledAgents.length === 0) return ""
+
+  const table = buildDelegationTable(enabledAgents)
+
+  return `<CustomDelegation>
+Custom agents available for delegation:
+
+${table}
+
+Delegate to these agents when their domain matches the task. Use the same delegation pattern as built-in agents.
+</CustomDelegation>`
+}
+
+/**
  * Compose the full Loom system prompt from sections.
  * When no agents are disabled, produces identical output to LOOM_DEFAULTS.prompt.
  */
 export function composeLoomPrompt(options: LoomPromptOptions = {}): string {
   const disabled = options.disabledAgents ?? new Set()
   const fingerprint = options.fingerprint
+  const customAgents = options.customAgents ?? []
 
   const sections = [
     buildRoleSection(),
@@ -287,6 +313,7 @@ export function composeLoomPrompt(options: LoomPromptOptions = {}): string {
     buildSidebarTodosSection(),
     buildDelegationSection(disabled),
     buildDelegationNarrationSection(disabled),
+    buildCustomAgentDelegationSection(customAgents, disabled),
     buildPlanWorkflowSection(disabled),
     buildReviewWorkflowSection(disabled),
     buildStyleSection(),
