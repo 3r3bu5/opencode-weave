@@ -5,8 +5,10 @@ import { log, getLogFilePath, logDelegation } from "./log"
 const logFile = getLogFilePath()
 
 beforeEach(() => {
-  if (fs.existsSync(logFile)) {
+  try {
     fs.writeFileSync(logFile, "")
+  } catch {
+    // File may not exist yet — log() will create it
   }
 })
 

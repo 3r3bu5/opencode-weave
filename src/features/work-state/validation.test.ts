@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
-import { mkdirSync, writeFileSync, rmSync } from "fs"
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "fs"
 import { join, resolve, sep } from "path"
 import { tmpdir } from "os"
 import { validatePlan } from "./validation"
@@ -50,7 +50,7 @@ function writePlan(name: string, content: string): string {
 }
 
 beforeEach(() => {
-  testDir = join(tmpdir(), `weave-val-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  testDir = mkdtempSync(join(tmpdir(), "weave-val-"))
   plansDir = join(testDir, PLANS_DIR)
   mkdirSync(plansDir, { recursive: true })
 })

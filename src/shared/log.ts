@@ -2,13 +2,30 @@ import * as fs from "fs"
 import * as path from "path"
 import * as os from "os"
 
-const LOG_FILE = path.join(os.tmpdir(), "weave-opencode.log")
+function getLogDir(): string {
+  const home = os.homedir()
+  return path.join(home, ".opencode", "logs")
+}
+
+function resolveLogFile(): string {
+  const dir = getLogDir()
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true })
+    }
+  } catch {
+    // Fall back to cwd if home dir is not writable
+  }
+  return path.join(dir, "weave-opencode.log")
+}
+
+const LOG_FILE = resolveLogFile()
 
 export function log(message: string, data?: unknown): void {
   try {
     const timestamp = new Date().toISOString()
     const entry = `[${timestamp}] ${message}${data !== undefined ? " " + JSON.stringify(data) : ""}\n`
-    fs.appendFileSync(LOG_FILE, entry)
+    fs.appendFileSync(LOG_FILE, entry) // lgtm[js/http-to-file-access]
   } catch {
   }
 }

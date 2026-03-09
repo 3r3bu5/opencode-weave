@@ -1,6 +1,6 @@
-import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import * as fs from "fs"
-import { mkdirSync, writeFileSync, rmSync } from "fs"
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
 import { createPluginInterface } from "./plugin-interface"
@@ -55,7 +55,11 @@ beforeEach(() => {
   clearAllTokenState()
   // Clear log file before each test so delegation log assertions are isolated
   const logFile = getLogFilePath()
-  if (fs.existsSync(logFile)) fs.writeFileSync(logFile, "")
+  try {
+    fs.writeFileSync(logFile, "")
+  } catch {
+    // File may not exist yet — log() will create it
+  }
 })
 
 describe("createPluginInterface", () => {
@@ -465,7 +469,7 @@ describe("createPluginInterface", () => {
     let tempDir: string
 
     beforeEach(() => {
-      tempDir = join(tmpdir(), `weave-interrupt-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+      tempDir = mkdtempSync(join(tmpdir(), "weave-interrupt-"))
       // Set up a temp dir with a plan file and work state so pauseWork/checkContinuation work
       const plansDir = join(tempDir, WEAVE_DIR, "plans")
       mkdirSync(plansDir, { recursive: true })
@@ -609,7 +613,7 @@ describe("createPluginInterface", () => {
     let tempDir: string
 
     beforeEach(() => {
-      tempDir = join(tmpdir(), `weave-autopause-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+      tempDir = mkdtempSync(join(tmpdir(), "weave-autopause-"))
       const plansDir = join(tempDir, WEAVE_DIR, "plans")
       mkdirSync(plansDir, { recursive: true })
       const planFile = join(plansDir, "test-plan.md")

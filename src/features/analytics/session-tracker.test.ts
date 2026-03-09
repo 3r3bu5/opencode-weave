@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
-import { mkdirSync, rmSync } from "fs"
+import { mkdtempSync, rmSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
 import { SessionTracker, createSessionTracker } from "./session-tracker"
@@ -9,8 +9,7 @@ let tempDir: string
 let tracker: SessionTracker
 
 beforeEach(() => {
-  tempDir = join(tmpdir(), `weave-tracker-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
-  mkdirSync(tempDir, { recursive: true })
+  tempDir = mkdtempSync(join(tmpdir(), "weave-tracker-test-"))
   tracker = createSessionTracker(tempDir)
 })
 

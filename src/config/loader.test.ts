@@ -1,13 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
-import { mkdirSync, writeFileSync, rmSync } from "node:fs"
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { loadWeaveConfig } from "./loader"
 
 function createTmpDir(): string {
-  const dir = join(tmpdir(), `weave-loader-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
-  mkdirSync(dir, { recursive: true })
-  return dir
+  return mkdtempSync(join(tmpdir(), "weave-loader-test-"))
 }
 
 describe("loadWeaveConfig", () => {

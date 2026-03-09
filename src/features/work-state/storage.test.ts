@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
-import { mkdirSync, writeFileSync, existsSync, rmSync } from "fs"
+import { mkdirSync, mkdtempSync, writeFileSync, existsSync, rmSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
 import {
@@ -20,8 +20,7 @@ import { WEAVE_DIR, PLANS_DIR } from "./constants"
 let testDir: string
 
 beforeEach(() => {
-  testDir = join(tmpdir(), `weave-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
-  mkdirSync(testDir, { recursive: true })
+  testDir = mkdtempSync(join(tmpdir(), "weave-test-"))
 })
 
 afterEach(() => {
