@@ -1,7 +1,6 @@
 import { describe, it, expect } from "bun:test"
 import { formatMetricsMarkdown } from "./format-metrics"
 import type { MetricsReport, SessionSummary } from "./types"
-import { zeroTokenUsage } from "./types"
 
 function makeReport(overrides: Partial<MetricsReport> = {}): MetricsReport {
   return {

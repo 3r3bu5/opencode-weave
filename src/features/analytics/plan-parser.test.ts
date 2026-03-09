@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test"
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "fs"
+import { mkdtempSync, writeFileSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
 import { extractPlannedFiles } from "./plan-parser"
