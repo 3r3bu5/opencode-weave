@@ -123,19 +123,26 @@ export class SessionTracker {
   }
 
   /**
-   * Accumulate token usage from a message into the session totals.
+   * Track token usage from a message.updated event.
+   * Accumulates all token fields into the session's running totals.
+   * Lazily starts the session if needed.
    */
   trackTokenUsage(
     sessionId: string,
-    tokens: { input: number; output: number; reasoning: number; cache: { read: number; write: number } },
+    tokens: {
+      input?: number
+      output?: number
+      reasoning?: number
+      cacheRead?: number
+      cacheWrite?: number
+    },
   ): void {
-    const session = this.sessions.get(sessionId)
-    if (!session) return
+    const session = this.startSession(sessionId)
     session.tokenUsage.inputTokens += safeNum(tokens.input)
     session.tokenUsage.outputTokens += safeNum(tokens.output)
     session.tokenUsage.reasoningTokens += safeNum(tokens.reasoning)
-    session.tokenUsage.cacheReadTokens += safeNum(tokens.cache.read)
-    session.tokenUsage.cacheWriteTokens += safeNum(tokens.cache.write)
+    session.tokenUsage.cacheReadTokens += safeNum(tokens.cacheRead)
+    session.tokenUsage.cacheWriteTokens += safeNum(tokens.cacheWrite)
     session.tokenUsage.totalMessages += 1
   }
 
@@ -178,6 +185,10 @@ export class SessionTracker {
         sessionId,
         totalToolCalls,
         totalDelegations: session.delegations.length,
+        ...(summary.tokenUsage ? {
+          inputTokens: summary.tokenUsage.inputTokens,
+          outputTokens: summary.tokenUsage.outputTokens,
+        } : {}),
       })
     } catch (err) {
       log("[analytics] Failed to persist session summary (non-fatal)", {

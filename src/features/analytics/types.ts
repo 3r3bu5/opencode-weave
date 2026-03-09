@@ -70,7 +70,7 @@ export interface SessionSummary {
   agentName?: string
   /** Total dollar cost accumulated across all messages */
   totalCost?: number
-  /** Accumulated token usage across all messages */
+  /** Aggregated token usage across all messages (absent for old entries or sessions with no messages) */
   tokenUsage?: TokenUsage
 }
 
@@ -115,7 +115,7 @@ export interface Suggestion {
   /** Human-readable suggestion text */
   text: string
   /** Category of suggestion */
-  category: "tool-usage" | "delegation" | "workflow"
+  category: "tool-usage" | "delegation" | "workflow" | "token-usage"
   /** Confidence level */
   confidence: "high" | "medium" | "low"
 }
@@ -148,6 +148,6 @@ export interface TrackedSession {
   agentName?: string
   /** Accumulated dollar cost across all messages */
   totalCost: number
-  /** Accumulated token usage across all messages */
+  /** Cumulative token usage across all messages */
   tokenUsage: TokenUsage
 }
