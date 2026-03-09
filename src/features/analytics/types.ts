@@ -32,6 +32,22 @@ export interface DelegationEntry {
   durationMs?: number
 }
 
+/** Accumulated token usage across all messages in a session */
+export interface TokenUsage {
+  /** Total input tokens consumed */
+  inputTokens: number
+  /** Total output tokens generated */
+  outputTokens: number
+  /** Total reasoning tokens used */
+  reasoningTokens: number
+  /** Total cache read tokens */
+  cacheReadTokens: number
+  /** Total cache write tokens */
+  cacheWriteTokens: number
+  /** Total number of assistant messages processed */
+  totalMessages: number
+}
+
 /** Summary of a completed session, appended as a JSONL line */
 export interface SessionSummary {
   /** Unique session identifier */
@@ -50,6 +66,12 @@ export interface SessionSummary {
   totalToolCalls: number
   /** Total number of delegations */
   totalDelegations: number
+  /** Display name of the agent that ran this session (e.g., "Loom (Main Orchestrator)") */
+  agentName?: string
+  /** Total dollar cost accumulated across all messages */
+  totalCost?: number
+  /** Accumulated token usage across all messages */
+  tokenUsage?: TokenUsage
 }
 
 // ── Project Fingerprint ──────────────────────────────────────────
@@ -122,4 +144,10 @@ export interface TrackedSession {
   delegations: DelegationEntry[]
   /** In-flight tool calls keyed by callID */
   inFlight: Record<string, InFlightToolCall>
+  /** Display name of the agent running this session */
+  agentName?: string
+  /** Accumulated dollar cost across all messages */
+  totalCost: number
+  /** Accumulated token usage across all messages */
+  tokenUsage: TokenUsage
 }

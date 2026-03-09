@@ -163,6 +163,133 @@ describe("SessionTracker", () => {
       expect(tracker.activeSessionCount).toBe(1)
     })
   })
+
+  describe("setAgentName", () => {
+    it("stores agent name on session", () => {
+      tracker.startSession("s1")
+      tracker.setAgentName("s1", "Loom (Main Orchestrator)")
+      const session = tracker.getSession("s1")!
+      expect(session.agentName).toBe("Loom (Main Orchestrator)")
+    })
+
+    it("is idempotent — first call wins", () => {
+      tracker.startSession("s1")
+      tracker.setAgentName("s1", "Loom")
+      tracker.setAgentName("s1", "Tapestry")
+      const session = tracker.getSession("s1")!
+      expect(session.agentName).toBe("Loom")
+    })
+
+    it("is safe to call for untracked sessions", () => {
+      // Should not throw
+      tracker.setAgentName("nonexistent", "Loom")
+    })
+  })
+
+  describe("trackCost", () => {
+    it("accumulates cost across multiple calls", () => {
+      tracker.startSession("s1")
+      tracker.trackCost("s1", 0.05)
+      tracker.trackCost("s1", 0.03)
+      tracker.trackCost("s1", 0.02)
+      const session = tracker.getSession("s1")!
+      expect(session.totalCost).toBeCloseTo(0.10, 10)
+    })
+
+    it("is safe to call for untracked sessions", () => {
+      tracker.trackCost("nonexistent", 0.05)
+    })
+  })
+
+  describe("trackTokenUsage", () => {
+    it("accumulates all token fields and increments totalMessages", () => {
+      tracker.startSession("s1")
+      tracker.trackTokenUsage("s1", { input: 100, output: 50, reasoning: 10, cache: { read: 20, write: 5 } })
+      tracker.trackTokenUsage("s1", { input: 200, output: 100, reasoning: 20, cache: { read: 40, write: 10 } })
+
+      const session = tracker.getSession("s1")!
+      expect(session.tokenUsage.inputTokens).toBe(300)
+      expect(session.tokenUsage.outputTokens).toBe(150)
+      expect(session.tokenUsage.reasoningTokens).toBe(30)
+      expect(session.tokenUsage.cacheReadTokens).toBe(60)
+      expect(session.tokenUsage.cacheWriteTokens).toBe(15)
+      expect(session.tokenUsage.totalMessages).toBe(2)
+    })
+
+    it("is safe to call for untracked sessions", () => {
+      tracker.trackTokenUsage("nonexistent", { input: 100, output: 50, reasoning: 10, cache: { read: 20, write: 5 } })
+    })
+  })
+
+  describe("endSession with new fields", () => {
+    it("includes agentName, totalCost, and tokenUsage in summary", () => {
+      tracker.startSession("s1")
+      tracker.setAgentName("s1", "Loom")
+      tracker.trackCost("s1", 0.05)
+      tracker.trackTokenUsage("s1", { input: 100, output: 50, reasoning: 10, cache: { read: 20, write: 5 } })
+
+      const summary = tracker.endSession("s1")!
+      expect(summary.agentName).toBe("Loom")
+      expect(summary.totalCost).toBeCloseTo(0.05, 10)
+      expect(summary.tokenUsage).toBeDefined()
+      expect(summary.tokenUsage!.inputTokens).toBe(100)
+      expect(summary.tokenUsage!.outputTokens).toBe(50)
+      expect(summary.tokenUsage!.totalMessages).toBe(1)
+    })
+
+    it("omits agentName when not set (undefined)", () => {
+      tracker.startSession("s1")
+      const summary = tracker.endSession("s1")!
+      expect(summary.agentName).toBeUndefined()
+    })
+
+    it("omits totalCost when no cost tracked", () => {
+      tracker.startSession("s1")
+      const summary = tracker.endSession("s1")!
+      expect(summary.totalCost).toBeUndefined()
+    })
+
+    it("omits tokenUsage when no messages tracked", () => {
+      tracker.startSession("s1")
+      const summary = tracker.endSession("s1")!
+      expect(summary.tokenUsage).toBeUndefined()
+    })
+
+    it("includes totalCost when cost was tracked", () => {
+      tracker.startSession("s1")
+      tracker.trackCost("s1", 0.05)
+      const summary = tracker.endSession("s1")!
+      expect(summary.totalCost).toBe(0.05)
+    })
+
+    it("includes tokenUsage when messages were tracked", () => {
+      tracker.startSession("s1")
+      tracker.trackTokenUsage("s1", { input: 100, output: 50, reasoning: 0, cache: { read: 0, write: 0 } })
+      const summary = tracker.endSession("s1")!
+      expect(summary.tokenUsage).toBeDefined()
+      expect(summary.tokenUsage!.totalMessages).toBe(1)
+    })
+
+    it("trackCost ignores NaN and negative values", () => {
+      tracker.startSession("s1")
+      tracker.trackCost("s1", NaN)
+      tracker.trackCost("s1", -5)
+      tracker.trackCost("s1", 0.10)
+      const summary = tracker.endSession("s1")!
+      expect(summary.totalCost).toBe(0.10)
+    })
+
+    it("trackTokenUsage ignores NaN and negative token values", () => {
+      tracker.startSession("s1")
+      tracker.trackTokenUsage("s1", { input: NaN, output: -1, reasoning: 100, cache: { read: NaN, write: 50 } })
+      const summary = tracker.endSession("s1")!
+      expect(summary.tokenUsage!.inputTokens).toBe(0)
+      expect(summary.tokenUsage!.outputTokens).toBe(0)
+      expect(summary.tokenUsage!.reasoningTokens).toBe(100)
+      expect(summary.tokenUsage!.cacheReadTokens).toBe(0)
+      expect(summary.tokenUsage!.cacheWriteTokens).toBe(50)
+    })
+  })
 })
 
 describe("createSessionTracker", () => {

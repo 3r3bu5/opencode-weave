@@ -2,6 +2,7 @@ export type {
   ToolUsageEntry,
   DelegationEntry,
   SessionSummary,
+  TokenUsage,
   DetectedStack,
   ProjectFingerprint,
   Suggestion,
@@ -31,6 +32,8 @@ export {
 export { SessionTracker, createSessionTracker } from "./session-tracker"
 
 export { generateSuggestions, getSuggestionsForProject } from "./suggestions"
+
+export { generateTokenReport, getTokenReport } from "./token-report"
 
 import { createSessionTracker } from "./session-tracker"
 import { getOrCreateFingerprint } from "./fingerprint"

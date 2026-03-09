@@ -13,4 +13,13 @@ ${START_WORK_TEMPLATE}
 <user-request>$ARGUMENTS</user-request>`,
     argumentHint: "[plan-name]",
   },
+  "token-report": {
+    name: "token-report",
+    description: "Show token usage and cost report across sessions",
+    agent: "loom",
+    template: `<command-instruction>
+Display the token usage report that has been injected below. Present it clearly to the user.
+</command-instruction>
+<token-report>$ARGUMENTS</token-report>`,
+  },
 }

@@ -4,9 +4,16 @@ import type {
   ToolUsageEntry,
   DelegationEntry,
   InFlightToolCall,
+  TokenUsage,
 } from "./types"
 import { appendSessionSummary } from "./storage"
 import { log } from "../../shared/log"
+
+/** Coerce a value to a finite non-negative number, defaulting to 0. */
+function safeNum(v: unknown): number {
+  const n = Number(v)
+  return Number.isFinite(n) && n >= 0 ? n : 0
+}
 
 /**
  * SessionTracker tracks tool usage and delegations across sessions,
@@ -38,6 +45,15 @@ export class SessionTracker {
       toolCounts: {},
       delegations: [],
       inFlight: {},
+      totalCost: 0,
+      tokenUsage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        reasoningTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        totalMessages: 0,
+      },
     }
     this.sessions.set(sessionId, session)
     return session
@@ -87,6 +103,43 @@ export class SessionTracker {
   }
 
   /**
+   * Set the agent name for a session. Only sets on first call (captures primary agent).
+   */
+  setAgentName(sessionId: string, agentName: string): void {
+    const session = this.sessions.get(sessionId)
+    if (!session) return
+    if (!session.agentName) {
+      session.agentName = agentName
+    }
+  }
+
+  /**
+   * Accumulate dollar cost from a message into the session total.
+   */
+  trackCost(sessionId: string, cost: number): void {
+    const session = this.sessions.get(sessionId)
+    if (!session) return
+    session.totalCost += safeNum(cost)
+  }
+
+  /**
+   * Accumulate token usage from a message into the session totals.
+   */
+  trackTokenUsage(
+    sessionId: string,
+    tokens: { input: number; output: number; reasoning: number; cache: { read: number; write: number } },
+  ): void {
+    const session = this.sessions.get(sessionId)
+    if (!session) return
+    session.tokenUsage.inputTokens += safeNum(tokens.input)
+    session.tokenUsage.outputTokens += safeNum(tokens.output)
+    session.tokenUsage.reasoningTokens += safeNum(tokens.reasoning)
+    session.tokenUsage.cacheReadTokens += safeNum(tokens.cache.read)
+    session.tokenUsage.cacheWriteTokens += safeNum(tokens.cache.write)
+    session.tokenUsage.totalMessages += 1
+  }
+
+  /**
    * End a session and persist the summary. Removes the session from tracking.
    * Returns the generated summary, or null if the session wasn't being tracked.
    */
@@ -113,6 +166,9 @@ export class SessionTracker {
       delegations: session.delegations,
       totalToolCalls,
       totalDelegations: session.delegations.length,
+      agentName: session.agentName,
+      totalCost: session.totalCost > 0 ? session.totalCost : undefined,
+      tokenUsage: session.tokenUsage.totalMessages > 0 ? session.tokenUsage : undefined,
     }
 
     // Persist to JSONL — fire-and-forget

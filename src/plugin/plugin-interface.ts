@@ -15,6 +15,8 @@ import {
 } from "../hooks"
 import { pauseWork, readWorkState } from "../features/work-state"
 import { CONTINUATION_MARKER } from "../hooks/work-continuation"
+import { readSessionSummaries } from "../features/analytics/storage"
+import { generateTokenReport } from "../features/analytics/token-report"
 
 export function createPluginInterface(args: {
   pluginConfig: WeaveConfig
@@ -139,6 +141,7 @@ export function createPluginInterface(args: {
     "chat.params": async (_input, _output) => {
       const input = _input as {
         sessionID?: string
+        agent?: string
         model?: { limit?: { context?: number } }
       }
       const sessionId = input.sessionID ?? ""
@@ -146,6 +149,11 @@ export function createPluginInterface(args: {
       if (sessionId && maxTokens > 0) {
         setContextLimit(sessionId, maxTokens)
         log("[context-window] Captured context limit", { sessionId, maxTokens })
+      }
+
+      // Analytics: capture agent name
+      if (tracker && hooks.analyticsEnabled && sessionId && input.agent) {
+        tracker.setAgentName(sessionId, input.agent)
       }
     },
 
@@ -214,6 +222,43 @@ export function createPluginInterface(args: {
                 })
               }
             }
+          }
+        }
+      }
+
+      // Analytics: capture cost and token usage from assistant messages
+      if (event.type === "message.updated" && tracker && hooks.analyticsEnabled) {
+        const evt = event as {
+          type: string
+          properties: {
+            info: {
+              role?: string
+              sessionID?: string
+              cost?: number
+              tokens?: {
+                input?: number
+                output?: number
+                reasoning?: number
+                cache?: { read?: number; write?: number }
+              }
+            }
+          }
+        }
+        const info = evt.properties?.info
+        if (info?.role === "assistant" && info.sessionID) {
+          if (typeof info.cost === "number" && info.cost > 0) {
+            tracker.trackCost(info.sessionID, info.cost)
+          }
+          if (info.tokens) {
+            tracker.trackTokenUsage(info.sessionID, {
+              input: info.tokens.input ?? 0,
+              output: info.tokens.output ?? 0,
+              reasoning: info.tokens.reasoning ?? 0,
+              cache: {
+                read: info.tokens.cache?.read ?? 0,
+                write: info.tokens.cache?.write ?? 0,
+              },
+            })
           }
         }
       }
@@ -334,6 +379,16 @@ export function createPluginInterface(args: {
              "unknown")
           : undefined
         tracker.trackToolEnd(input.sessionID, input.tool, input.callID, agentArg)
+      }
+    },
+
+    "command.execute.before": async (input, output) => {
+      const { command } = input as { command: string; sessionID: string; arguments: string }
+      if (command === "token-report") {
+        const summaries = readSessionSummaries(directory)
+        const reportText = generateTokenReport(summaries)
+        const parts = (output as { parts: Array<{ type: string; text: string }> }).parts
+        parts.push({ type: "text", text: reportText })
       }
     },
   }

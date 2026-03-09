@@ -14,6 +14,7 @@ export type PluginInterface = Required<
     | "event"
     | "tool.execute.before"
     | "tool.execute.after"
+    | "command.execute.before"
   >
 >
 
