@@ -9,6 +9,12 @@ import type {
 import { appendSessionSummary } from "./storage"
 import { log } from "../../shared/log"
 
+/** Coerce a value to a finite non-negative number, defaulting to 0. */
+function safeNum(v: unknown): number {
+  const n = Number(v)
+  return Number.isFinite(n) && n >= 0 ? n : 0
+}
+
 /**
  * SessionTracker tracks tool usage and delegations across sessions,
  * producing SessionSummary records when sessions end.
@@ -39,6 +45,7 @@ export class SessionTracker {
       toolCounts: {},
       delegations: [],
       inFlight: {},
+      totalCost: 0,
       tokenUsage: {
         inputTokens: 0,
         outputTokens: 0,
@@ -96,6 +103,26 @@ export class SessionTracker {
   }
 
   /**
+   * Set the agent name for a session. Only sets on first call (captures primary agent).
+   */
+  setAgentName(sessionId: string, agentName: string): void {
+    const session = this.sessions.get(sessionId)
+    if (!session) return
+    if (!session.agentName) {
+      session.agentName = agentName
+    }
+  }
+
+  /**
+   * Accumulate dollar cost from a message into the session total.
+   */
+  trackCost(sessionId: string, cost: number): void {
+    const session = this.sessions.get(sessionId)
+    if (!session) return
+    session.totalCost += safeNum(cost)
+  }
+
+  /**
    * Track token usage from a message.updated event.
    * Accumulates all token fields into the session's running totals.
    * Lazily starts the session if needed.
@@ -111,9 +138,6 @@ export class SessionTracker {
     },
   ): void {
     const session = this.startSession(sessionId)
-    const safeNum = (v: number | undefined): number =>
-      typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0
-
     session.tokenUsage.inputTokens += safeNum(tokens.input)
     session.tokenUsage.outputTokens += safeNum(tokens.output)
     session.tokenUsage.reasoningTokens += safeNum(tokens.reasoning)
@@ -149,11 +173,9 @@ export class SessionTracker {
       delegations: session.delegations,
       totalToolCalls,
       totalDelegations: session.delegations.length,
-    }
-
-    // Include token usage only when at least one message contributed token data
-    if (session.tokenUsage.totalMessages > 0) {
-      summary.tokenUsage = { ...session.tokenUsage }
+      agentName: session.agentName,
+      totalCost: session.totalCost > 0 ? session.totalCost : undefined,
+      tokenUsage: session.tokenUsage.totalMessages > 0 ? session.tokenUsage : undefined,
     }
 
     // Persist to JSONL — fire-and-forget

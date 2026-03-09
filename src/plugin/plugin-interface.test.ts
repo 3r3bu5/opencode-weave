@@ -59,7 +59,7 @@ beforeEach(() => {
 })
 
 describe("createPluginInterface", () => {
-  it("returns object with all 8 required handler keys", () => {
+  it("returns object with all 9 required handler keys", () => {
     const iface = createPluginInterface({
       pluginConfig: baseConfig,
       hooks: makeHooks(),
@@ -77,6 +77,7 @@ describe("createPluginInterface", () => {
     expect(keys).toContain("event")
     expect(keys).toContain("tool.execute.before")
     expect(keys).toContain("tool.execute.after")
+    expect(keys).toContain("command.execute.before")
   })
 
   it("tool is the tools record passed in", () => {
@@ -115,6 +116,7 @@ describe("createPluginInterface", () => {
     expect(typeof iface.event).toBe("function")
     expect(typeof iface["tool.execute.before"]).toBe("function")
     expect(typeof iface["tool.execute.after"]).toBe("function")
+    expect(typeof iface["command.execute.before"]).toBe("function")
     expect(typeof iface.tool).toBe("object")
   })
 
@@ -1100,5 +1102,206 @@ describe("context window monitoring", () => {
     await iface.event({ event: event as Parameters<typeof iface.event>[0]["event"] })
 
     expect(getTokenState("sess-to-delete")).toBeUndefined()
+  })
+})
+
+describe("analytics: agent name and cost tracking", () => {
+  let tempDir: string
+
+  beforeEach(() => {
+    tempDir = join(tmpdir(), `weave-analytics-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+    mkdirSync(tempDir, { recursive: true })
+  })
+
+  afterEach(() => {
+    try {
+      rmSync(tempDir, { recursive: true, force: true })
+    } catch {
+      // ignore cleanup errors
+    }
+  })
+
+  it("chat.params calls tracker.setAgentName when analytics enabled", async () => {
+    const { createSessionTracker } = await import("../features/analytics")
+    const tracker = createSessionTracker(tempDir)
+    tracker.startSession("s1")
+
+    const iface = createPluginInterface({
+      pluginConfig: baseConfig,
+      hooks: makeHooks({ analyticsEnabled: true }),
+      tools: emptyTools,
+      configHandler: makeMockConfigHandler(),
+      agents: {},
+      tracker,
+    })
+
+    await iface["chat.params"](
+      { sessionID: "s1", agent: "Loom (Main Orchestrator)", model: { limit: { context: 100_000 } } } as Parameters<typeof iface["chat.params"]>[0],
+      {} as never,
+    )
+
+    const session = tracker.getSession("s1")!
+    expect(session.agentName).toBe("Loom (Main Orchestrator)")
+  })
+
+  it("chat.params is no-op for agent name when tracker is absent", async () => {
+    const iface = createPluginInterface({
+      pluginConfig: baseConfig,
+      hooks: makeHooks({ analyticsEnabled: true }),
+      tools: emptyTools,
+      configHandler: makeMockConfigHandler(),
+      agents: {},
+      // no tracker
+    })
+
+    // Should not throw
+    await iface["chat.params"](
+      { sessionID: "s1", agent: "Loom", model: { limit: { context: 100_000 } } } as Parameters<typeof iface["chat.params"]>[0],
+      {} as never,
+    )
+  })
+
+  it("message.updated calls tracker.trackCost and tracker.trackTokenUsage when analytics enabled", async () => {
+    const { createSessionTracker } = await import("../features/analytics")
+    const tracker = createSessionTracker(tempDir)
+    tracker.startSession("s1")
+
+    const iface = createPluginInterface({
+      pluginConfig: baseConfig,
+      hooks: makeHooks({ analyticsEnabled: true }),
+      tools: emptyTools,
+      configHandler: makeMockConfigHandler(),
+      agents: {},
+      tracker,
+    })
+
+    const event = {
+      type: "message.updated",
+      properties: {
+        info: {
+          role: "assistant",
+          sessionID: "s1",
+          cost: 0.05,
+          tokens: { input: 100, output: 50, reasoning: 10, cache: { read: 20, write: 5 } },
+        },
+      },
+    }
+    await iface.event({ event: event as Parameters<typeof iface.event>[0]["event"] })
+
+    const session = tracker.getSession("s1")!
+    expect(session.totalCost).toBeCloseTo(0.05, 10)
+    expect(session.tokenUsage.inputTokens).toBe(100)
+    expect(session.tokenUsage.outputTokens).toBe(50)
+    expect(session.tokenUsage.reasoningTokens).toBe(10)
+    expect(session.tokenUsage.cacheReadTokens).toBe(20)
+    expect(session.tokenUsage.cacheWriteTokens).toBe(5)
+    expect(session.tokenUsage.totalMessages).toBe(1)
+  })
+
+  it("message.updated is no-op for cost/tokens when tracker is absent", async () => {
+    const iface = createPluginInterface({
+      pluginConfig: baseConfig,
+      hooks: makeHooks({ analyticsEnabled: true }),
+      tools: emptyTools,
+      configHandler: makeMockConfigHandler(),
+      agents: {},
+      // no tracker
+    })
+
+    const event = {
+      type: "message.updated",
+      properties: {
+        info: {
+          role: "assistant",
+          sessionID: "s1",
+          cost: 0.05,
+          tokens: { input: 100, output: 50, reasoning: 10, cache: { read: 20, write: 5 } },
+        },
+      },
+    }
+    // Should not throw
+    await iface.event({ event: event as Parameters<typeof iface.event>[0]["event"] })
+  })
+})
+
+describe("command.execute.before handler", () => {
+  let tempDir: string
+
+  beforeEach(() => {
+    tempDir = join(tmpdir(), `weave-cmd-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+    mkdirSync(tempDir, { recursive: true })
+  })
+
+  afterEach(() => {
+    try {
+      rmSync(tempDir, { recursive: true, force: true })
+    } catch {
+      // ignore cleanup errors
+    }
+  })
+
+  it("injects report text for token-report command", async () => {
+    // Write a session summary to the JSONL file so the report has data
+    const { appendSessionSummary } = await import("../features/analytics/storage")
+    appendSessionSummary(tempDir, {
+      sessionId: "test-session",
+      startedAt: "2026-01-01T00:00:00.000Z",
+      endedAt: "2026-01-01T00:05:00.000Z",
+      durationMs: 300_000,
+      toolUsage: [],
+      delegations: [],
+      totalToolCalls: 5,
+      totalDelegations: 1,
+      agentName: "Loom",
+      totalCost: 0.25,
+      tokenUsage: {
+        inputTokens: 1000,
+        outputTokens: 500,
+        reasoningTokens: 100,
+        cacheReadTokens: 200,
+        cacheWriteTokens: 50,
+        totalMessages: 3,
+      },
+    })
+
+    const iface = createPluginInterface({
+      pluginConfig: baseConfig,
+      hooks: makeHooks(),
+      tools: emptyTools,
+      configHandler: makeMockConfigHandler(),
+      agents: {},
+      directory: tempDir,
+    })
+
+    const output = { parts: [] as Array<{ type: string; text: string }> }
+    await iface["command.execute.before"](
+      { command: "token-report", sessionID: "s1", arguments: "" } as Parameters<typeof iface["command.execute.before"]>[0],
+      output as Parameters<typeof iface["command.execute.before"]>[1],
+    )
+
+    expect(output.parts.length).toBe(1)
+    expect(output.parts[0].type).toBe("text")
+    expect(output.parts[0].text).toContain("Overall Totals")
+    expect(output.parts[0].text).toContain("Loom")
+    expect(output.parts[0].text).toContain("$0.25")
+  })
+
+  it("is no-op for other commands", async () => {
+    const iface = createPluginInterface({
+      pluginConfig: baseConfig,
+      hooks: makeHooks(),
+      tools: emptyTools,
+      configHandler: makeMockConfigHandler(),
+      agents: {},
+      directory: tempDir,
+    })
+
+    const output = { parts: [] as Array<{ type: string; text: string }> }
+    await iface["command.execute.before"](
+      { command: "start-work", sessionID: "s1", arguments: "my-plan" } as Parameters<typeof iface["command.execute.before"]>[0],
+      output as Parameters<typeof iface["command.execute.before"]>[1],
+    )
+
+    expect(output.parts.length).toBe(0)
   })
 })

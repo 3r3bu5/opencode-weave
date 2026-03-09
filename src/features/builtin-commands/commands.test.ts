@@ -40,4 +40,16 @@ describe("BUILTIN_COMMANDS", () => {
   it("start-work has name matching its key", () => {
     expect(BUILTIN_COMMANDS["start-work"].name).toBe("start-work")
   })
+
+  it("has token-report command", () => {
+    expect(BUILTIN_COMMANDS["token-report"]).toBeDefined()
+  })
+
+  it("token-report has a description", () => {
+    expect(BUILTIN_COMMANDS["token-report"].description).toBeTruthy()
+  })
+
+  it("token-report has name matching its key", () => {
+    expect(BUILTIN_COMMANDS["token-report"].name).toBe("token-report")
+  })
 })
