@@ -1,4 +1,5 @@
 import { describe, it, expect, mock, beforeEach, afterEach, spyOn } from "bun:test"
+import { join } from "path"
 import type { LoadedSkill } from "./types"
 
 // Mock discovery module before importing loader
@@ -115,9 +116,9 @@ describe("loadSkills", () => {
   it("scans both user and project skill directories", async () => {
     await loadSkills({ serverUrl: SERVER_URL, directory: DIRECTORY })
     expect(scanDirectorySpy).toHaveBeenCalledTimes(2)
-    // First call: user-level
+    // First call: user-level — use join() for cross-platform path comparison
     const userCall = scanDirectorySpy.mock.calls[0][0] as { directory: string; scope: string }
-    expect(userCall.directory).toContain(".config/opencode/skills")
+    expect(userCall.directory).toContain(join(".config", "opencode", "skills"))
     expect(userCall.scope).toBe("user")
     // Second call: project-level
     const projectCall = scanDirectorySpy.mock.calls[1][0] as { directory: string; scope: string }
