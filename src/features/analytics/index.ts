@@ -60,7 +60,6 @@ export { calculateAdherence } from "./adherence"
 export { aggregateTokensForPlan } from "./plan-token-aggregator"
 
 import { createSessionTracker } from "./session-tracker"
-import { getOrCreateFingerprint } from "./fingerprint"
 import type { SessionTracker } from "./session-tracker"
 import type { ProjectFingerprint } from "./types"
 
@@ -74,12 +73,11 @@ export interface Analytics {
 
 /**
  * Create all analytics services for a project.
- * Instantiates the session tracker and optionally generates/loads the project fingerprint.
- * If a fingerprint is provided, it is reused; otherwise one is generated.
+ * Instantiates the session tracker and uses the provided fingerprint (if any).
+ * Fingerprint generation is the caller's responsibility — pass null to opt out.
  * This is the single entry point called from the plugin's main init.
  */
-export function createAnalytics(directory: string, fingerprint?: ProjectFingerprint | null): Analytics {
+export function createAnalytics(directory: string, fingerprint: ProjectFingerprint | null): Analytics {
   const tracker = createSessionTracker(directory)
-  const resolvedFingerprint = fingerprint ?? getOrCreateFingerprint(directory)
-  return { tracker, fingerprint: resolvedFingerprint }
+  return { tracker, fingerprint }
 }
