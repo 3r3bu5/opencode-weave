@@ -126,8 +126,18 @@ describe("E2E Regression: Analytics opt-in/opt-out", () => {
     rmSync(testDir, { recursive: true, force: true })
   })
 
-  it("analytics.enabled: true creates analytics directory and fingerprint", async () => {
+  it("analytics.enabled: true creates analytics directory but NOT fingerprint by default", async () => {
     writeProjectConfig(testDir, { analytics: { enabled: true } })
+    await WeavePlugin(makeMockCtx(testDir))
+
+    // Analytics dir is NOT created unless a session ends or fingerprint is explicitly opted in
+    // (analytics.enabled alone only wires the tracker — no I/O until a session is persisted)
+    // The fingerprint file requires the separate use_fingerprint: true opt-in
+    expect(existsSync(join(testDir, ANALYTICS_DIR, "fingerprint.json"))).toBe(false)
+  })
+
+  it("analytics.enabled: true with use_fingerprint: true creates analytics directory and fingerprint", async () => {
+    writeProjectConfig(testDir, { analytics: { enabled: true, use_fingerprint: true } })
     await WeavePlugin(makeMockCtx(testDir))
 
     expect(existsSync(join(testDir, ANALYTICS_DIR))).toBe(true)
@@ -147,10 +157,10 @@ describe("E2E Regression: Analytics opt-in/opt-out", () => {
     expect(existsSync(join(testDir, ANALYTICS_DIR))).toBe(false)
   })
 
-  it("analytics.enabled: true injects fingerprint into Loom prompt", async () => {
+  it("analytics.enabled: true with use_fingerprint: true injects fingerprint into Loom prompt", async () => {
     // Add bun.lockb so fingerprint detects bun
     writeFileSync(join(testDir, "bun.lockb"), "")
-    writeProjectConfig(testDir, { analytics: { enabled: true } })
+    writeProjectConfig(testDir, { analytics: { enabled: true, use_fingerprint: true } })
 
     const plugin = await WeavePlugin(makeMockCtx(testDir))
     const configObj: Record<string, unknown> = {}
@@ -162,6 +172,20 @@ describe("E2E Regression: Analytics opt-in/opt-out", () => {
     expect(loomPrompt).toContain("<ProjectContext>")
     expect(loomPrompt).toContain("typescript")
     expect(loomPrompt).toContain("bun")
+  })
+
+  it("analytics.enabled: true WITHOUT use_fingerprint does NOT inject fingerprint into Loom prompt", async () => {
+    writeFileSync(join(testDir, "bun.lockb"), "")
+    writeProjectConfig(testDir, { analytics: { enabled: true } })
+
+    const plugin = await WeavePlugin(makeMockCtx(testDir))
+    const configObj: Record<string, unknown> = {}
+    await (plugin.config as (c: Record<string, unknown>) => Promise<void>)(configObj)
+
+    const agents = configObj.agent as Record<string, { prompt?: string }>
+    const loomPrompt = agents[getAgentDisplayName("loom")].prompt ?? ""
+
+    expect(loomPrompt).not.toContain("<ProjectContext>")
   })
 })
 
@@ -454,7 +478,7 @@ describe("E2E Regression: All features combined through WeavePlugin", () => {
         },
       },
       disabled_agents: ["spindle"],
-      analytics: { enabled: true },
+      analytics: { enabled: true, use_fingerprint: true },
     })
     registeredKeys.push("my-specialist")
 
@@ -481,7 +505,7 @@ describe("E2E Regression: All features combined through WeavePlugin", () => {
     expect(agents[getAgentDisplayName("thread")]).toBeDefined()
     expect(agents[getAgentDisplayName("tapestry")]).toBeDefined()
 
-    // Fingerprint injection (analytics enabled → fingerprint injected into prompts)
+    // Fingerprint injection (analytics.enabled + use_fingerprint: true → fingerprint injected into prompts)
     const loomPrompt = agents[loomDisplayName].prompt ?? ""
     expect(loomPrompt).toContain("<ProjectContext>")
     expect(loomPrompt).toContain("typescript")
