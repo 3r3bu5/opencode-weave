@@ -1573,4 +1573,148 @@ describe("workflow integration in plugin-interface", () => {
       ).resolves.toBeUndefined()
     })
   })
+
+  describe("auto-pause suppression during active workflow", () => {
+    let tempDir: string
+
+    beforeEach(() => {
+      tempDir = mkdtempSync(join(tmpdir(), "weave-wf-suppress-"))
+      const plansDir = join(tempDir, WEAVE_DIR, "plans")
+      mkdirSync(plansDir, { recursive: true })
+      const planFile = join(plansDir, "test-plan.md")
+      writeFileSync(planFile, "# Test Plan\n\n- [ ] Task 1\n- [ ] Task 2\n", "utf-8")
+      const state = createWorkState(planFile, "test-plan")
+      writeWorkState(tempDir, state)
+    })
+
+    afterEach(() => {
+      rmSync(tempDir, { recursive: true, force: true })
+    })
+
+    function setupRunningWorkflowInstance(dir: string) {
+      const { createWorkflowInstance, writeWorkflowInstance, setActiveInstance } = require("../features/workflow/storage")
+      const { WORKFLOWS_STATE_DIR, WORKFLOWS_DIR_PROJECT } = require("../features/workflow/constants")
+
+      const defDir = join(dir, WORKFLOWS_DIR_PROJECT)
+      mkdirSync(defDir, { recursive: true })
+      mkdirSync(join(dir, WORKFLOWS_STATE_DIR), { recursive: true })
+
+      const def = {
+        name: "test-wf",
+        description: "Test",
+        version: 1,
+        steps: [{ id: "s1", name: "Step 1", type: "interactive", agent: "loom", prompt: "Do it", completion: { method: "user_confirm" } }],
+      }
+      const defPath = join(defDir, "test-wf.json")
+      writeFileSync(defPath, JSON.stringify(def))
+
+      const instance = createWorkflowInstance(def, defPath, "Test goal", "sess-1")
+      instance.status = "running"
+      instance.steps["s1"].status = "active"
+      writeWorkflowInstance(dir, instance)
+      setActiveInstance(dir, instance.instance_id)
+      return instance
+    }
+
+    it("does NOT auto-pause when workflow is active and user sends regular message", async () => {
+      setupRunningWorkflowInstance(tempDir)
+
+      const hooks = makeHooks({
+        startWork: (_promptText: string, _sessionId: string) => ({
+          contextInjection: null,
+          switchAgent: null,
+        }),
+      })
+
+      const iface = createPluginInterface({
+        pluginConfig: baseConfig,
+        hooks,
+        tools: emptyTools,
+        configHandler: makeMockConfigHandler(),
+        agents: {},
+        directory: tempDir,
+      })
+
+      // Verify state is NOT paused initially
+      expect(readWorkState(tempDir)?.paused).not.toBe(true)
+
+      // User sends a regular message (not /start-work, not continuation)
+      const output = {
+        message: {} as never,
+        parts: [{ type: "text", text: "What's the status of the workflow?" }],
+      }
+      await iface["chat.message"]({ sessionID: "sess-wf-active" }, output)
+
+      // State should NOT be paused — workflow is active, so auto-pause is suppressed
+      expect(readWorkState(tempDir)?.paused).not.toBe(true)
+    })
+
+    it("still auto-pauses when no workflow is active", async () => {
+      // No workflow set up — just the work-state plan from beforeEach
+      const hooks = makeHooks({
+        startWork: (_promptText: string, _sessionId: string) => ({
+          contextInjection: null,
+          switchAgent: null,
+        }),
+      })
+
+      const iface = createPluginInterface({
+        pluginConfig: baseConfig,
+        hooks,
+        tools: emptyTools,
+        configHandler: makeMockConfigHandler(),
+        agents: {},
+        directory: tempDir,
+      })
+
+      expect(readWorkState(tempDir)?.paused).not.toBe(true)
+
+      const output = {
+        message: {} as never,
+        parts: [{ type: "text", text: "Can you help me with something else?" }],
+      }
+      await iface["chat.message"]({ sessionID: "sess-no-wf" }, output)
+
+      // State SHOULD be paused — no workflow active, regular message triggers auto-pause
+      expect(readWorkState(tempDir)?.paused).toBe(true)
+    })
+
+    it("does NOT auto-pause when workflow is active even without workflow continuation marker", async () => {
+      setupRunningWorkflowInstance(tempDir)
+
+      const hooks = makeHooks({
+        startWork: (_promptText: string, _sessionId: string) => ({
+          contextInjection: null,
+          switchAgent: null,
+        }),
+      })
+
+      const iface = createPluginInterface({
+        pluginConfig: baseConfig,
+        hooks,
+        tools: emptyTools,
+        configHandler: makeMockConfigHandler(),
+        agents: {},
+        directory: tempDir,
+      })
+
+      // Send a message that is NOT a workflow continuation (no marker)
+      const output = {
+        message: {} as never,
+        parts: [{ type: "text", text: "I have a question about the build" }],
+      }
+      await iface["chat.message"]({ sessionID: "sess-wf-nomrk" }, output)
+
+      // Should NOT pause — workflow is active even though no continuation marker
+      expect(readWorkState(tempDir)?.paused).not.toBe(true)
+    })
+
+    // R4 Verification: "pause workflow" only affects workflow, not work-state.
+    // Code trace confirms:
+    //   1. `handleWorkflowCommand("pause workflow", dir)` calls `pauseWorkflow(dir, reason)`
+    //   2. `pauseWorkflow` only modifies the workflow instance (sets status="paused"), not work-state
+    //   3. After pause, on next session.idle, workflow continuation returns null (instance.status is "paused")
+    //   4. Work-continuation then gets its turn and can resume if work-state is not paused
+    //   → No cross-contamination between the two systems.
+  })
 })

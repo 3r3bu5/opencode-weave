@@ -222,8 +222,12 @@ export function createPluginInterface(args: {
         const isStartWork = promptText.includes("<session-context>")
         const isContinuation = promptText.includes(CONTINUATION_MARKER)
         const isWorkflowContinuation = promptText.includes(WORKFLOW_CONTINUATION_MARKER)
+        const isActiveWorkflow = (() => {
+          const wf = getActiveWorkflowInstance(directory)
+          return wf != null && wf.status === "running"
+        })()
 
-        if (!isStartWork && !isContinuation && !isWorkflowContinuation) {
+        if (!isStartWork && !isContinuation && !isWorkflowContinuation && !isActiveWorkflow) {
           const state = readWorkState(directory)
           if (state && !state.paused) {
             pauseWork(directory)

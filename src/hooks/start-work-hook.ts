@@ -16,6 +16,7 @@ import {
   resumeWork,
 } from "../features/work-state"
 import type { ValidationResult } from "../features/work-state"
+import { getActiveWorkflowInstance, loadWorkflowDefinition } from "../features/workflow"
 
 export interface StartWorkInput {
   promptText: string
@@ -40,6 +41,12 @@ export function handleStartWork(input: StartWorkInput): StartWorkResult {
   // Only fire when the template has been injected (contains <session-context>)
   if (!promptText.includes("<session-context>")) {
     return { contextInjection: null, switchAgent: null }
+  }
+
+  // Check for active workflow (cross-system collision warning)
+  const workflowWarning = checkWorkflowActive(directory)
+  if (workflowWarning) {
+    return { contextInjection: workflowWarning, switchAgent: null }
   }
 
   const explicitPlanName = extractPlanName(promptText)
@@ -83,6 +90,35 @@ export function handleStartWork(input: StartWorkInput): StartWorkResult {
 
   // Case 3: Discover plans
   return handlePlanDiscovery(allPlans, sessionId, directory)
+}
+
+/**
+ * Check whether a workflow is currently active (running or paused).
+ * Returns a markdown warning string if active, or null otherwise.
+ */
+function checkWorkflowActive(directory: string): string | null {
+  const instance = getActiveWorkflowInstance(directory)
+  if (!instance) return null
+  if (instance.status !== "running" && instance.status !== "paused") return null
+
+  const definition = loadWorkflowDefinition(instance.definition_path)
+  const totalSteps = definition ? definition.steps.length : 0
+  const completedSteps = Object.values(instance.steps).filter((s) => s.status === "completed").length
+
+  const status = instance.status === "paused" ? "paused" : "running"
+
+  return `## Active Workflow Detected
+
+There is currently an active workflow: "${instance.definition_name}" (${instance.instance_id})
+Goal: "${instance.goal}"
+Status: ${status} • Progress: ${completedSteps}/${totalSteps} steps complete
+
+Starting plan execution will conflict with the active workflow — both systems use the idle loop and only one can drive at a time.
+
+**Options:**
+- **Proceed anyway** — the workflow will be paused and can be resumed with \`/run-workflow\` after the plan completes
+- **Abort the workflow first** — cancel the workflow, then start the plan
+- **Cancel** — don't start the plan, continue with the workflow`
 }
 
 /**

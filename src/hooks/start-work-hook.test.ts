@@ -5,6 +5,13 @@ import { tmpdir } from "os"
 import { handleStartWork, formatValidationResults } from "./start-work-hook"
 import { PLANS_DIR } from "../features/work-state/constants"
 import { writeWorkState, createWorkState, readWorkState } from "../features/work-state/storage"
+import {
+  createWorkflowInstance,
+  writeWorkflowInstance,
+  setActiveInstance,
+} from "../features/workflow/storage"
+import { WORKFLOWS_STATE_DIR, WORKFLOWS_DIR_PROJECT } from "../features/workflow/constants"
+import type { WorkflowDefinition } from "../features/workflow/types"
 
 let testDir: string
 
@@ -392,5 +399,139 @@ describe("formatValidationResults", () => {
     expect(text).toContain("Warnings:")
     expect(text).toContain("Error one")
     expect(text).toContain("Warn one")
+  })
+})
+
+const THREE_STEP_DEF: WorkflowDefinition = {
+  name: "test-workflow",
+  description: "A test workflow",
+  version: 1,
+  steps: [
+    {
+      id: "step-1",
+      name: "Step One",
+      type: "interactive",
+      agent: "loom",
+      prompt: "Do step 1: {{instance.goal}}",
+      completion: { method: "user_confirm" },
+    },
+    {
+      id: "step-2",
+      name: "Step Two",
+      type: "autonomous",
+      agent: "tapestry",
+      prompt: "Do step 2: {{instance.goal}}",
+      completion: { method: "agent_signal" },
+    },
+    {
+      id: "step-3",
+      name: "Step Three",
+      type: "interactive",
+      agent: "loom",
+      prompt: "Do step 3: {{instance.goal}}",
+      completion: { method: "user_confirm" },
+    },
+  ],
+}
+
+function writeWorkflowDefFile(dir: string, def: WorkflowDefinition = THREE_STEP_DEF): string {
+  const defDir = join(dir, WORKFLOWS_DIR_PROJECT)
+  mkdirSync(defDir, { recursive: true })
+  const defPath = join(defDir, `${def.name}.json`)
+  writeFileSync(defPath, JSON.stringify(def))
+  return defPath
+}
+
+function setupRunningWorkflow(dir: string, opts?: { paused?: boolean; completedSteps?: number }) {
+  const defPath = writeWorkflowDefFile(dir)
+  mkdirSync(join(dir, WORKFLOWS_STATE_DIR), { recursive: true })
+  const instance = createWorkflowInstance(THREE_STEP_DEF, defPath, "Build OAuth2 login", "sess-1")
+
+  const completedCount = opts?.completedSteps ?? 0
+  const stepIds = THREE_STEP_DEF.steps.map((s) => s.id)
+  for (let i = 0; i < completedCount && i < stepIds.length; i++) {
+    instance.steps[stepIds[i]].status = "completed"
+    instance.steps[stepIds[i]].started_at = new Date().toISOString()
+  }
+  if (completedCount < stepIds.length) {
+    instance.current_step_id = stepIds[completedCount]
+    instance.steps[stepIds[completedCount]].status = "active"
+    instance.steps[stepIds[completedCount]].started_at = new Date().toISOString()
+  }
+
+  if (opts?.paused) {
+    instance.status = "paused"
+  }
+
+  writeWorkflowInstance(dir, instance)
+  setActiveInstance(dir, instance.instance_id)
+  return instance
+}
+
+describe("handleStartWork with active workflow", () => {
+  it("shows warning when workflow is running", () => {
+    const instance = setupRunningWorkflow(testDir)
+
+    const result = handleStartWork({
+      promptText: makePrompt(),
+      sessionId: "sess-1",
+      directory: testDir,
+    })
+    expect(result.contextInjection).toContain("Active Workflow Detected")
+    expect(result.contextInjection).toContain("test-workflow")
+    expect(result.contextInjection).toContain(instance.instance_id)
+    expect(result.contextInjection).toContain("Build OAuth2 login")
+    expect(result.contextInjection).toContain("Proceed anyway")
+    expect(result.contextInjection).toContain("Abort the workflow first")
+    expect(result.contextInjection).toContain("Cancel")
+  })
+
+  it("shows warning when workflow is paused", () => {
+    setupRunningWorkflow(testDir, { paused: true })
+
+    const result = handleStartWork({
+      promptText: makePrompt(),
+      sessionId: "sess-1",
+      directory: testDir,
+    })
+    expect(result.contextInjection).toContain("Active Workflow Detected")
+    expect(result.contextInjection).toContain("paused")
+  })
+
+  it("no warning when no workflow is active", () => {
+    // Just create a plan, no workflow
+    createPlanFile(
+      "my-plan",
+      validPlanContent("- [ ] 1. Task\n  **What**: Do it\n  **Files**: src/a.ts (new)\n  **Acceptance**: Works")
+    )
+
+    const result = handleStartWork({
+      promptText: makePrompt(),
+      sessionId: "sess-1",
+      directory: testDir,
+    })
+    expect(result.contextInjection).not.toContain("Active Workflow Detected")
+  })
+
+  it("warning includes progress", () => {
+    setupRunningWorkflow(testDir, { completedSteps: 1 })
+
+    const result = handleStartWork({
+      promptText: makePrompt(),
+      sessionId: "sess-1",
+      directory: testDir,
+    })
+    expect(result.contextInjection).toContain("1/3")
+  })
+
+  it("switchAgent is null for the warning", () => {
+    setupRunningWorkflow(testDir)
+
+    const result = handleStartWork({
+      promptText: makePrompt(),
+      sessionId: "sess-1",
+      directory: testDir,
+    })
+    expect(result.switchAgent).toBeNull()
   })
 })

@@ -14,6 +14,7 @@ import {
   resumeWorkflow as engineResumeWorkflow,
 } from "./index"
 import type { CompletionContext } from "./index"
+import { readWorkState, getPlanProgress } from "../work-state"
 
 /**
  * Marker embedded in workflow continuation prompts so the auto-pause guard
@@ -81,22 +82,28 @@ export function handleRunWorkflow(input: {
   const args = extractArguments(promptText)
   const { workflowName, goal } = parseWorkflowArgs(args)
 
+  // Check for active work-state plan (cross-system collision warning)
+  const workStateWarning = checkWorkStatePlanActive(directory)
+
   // Check for existing active instance
   const activeInstance = getActiveWorkflowInstance(directory)
 
   // Case 1: No args, no active instance → list available definitions
   if (!workflowName && !activeInstance) {
-    return listAvailableWorkflows(directory)
+    const result = listAvailableWorkflows(directory)
+    return prependWarning(result, workStateWarning)
   }
 
   // Case 2: No args, active instance exists → resume it
   if (!workflowName && activeInstance) {
-    return resumeActiveWorkflow(directory)
+    const result = resumeActiveWorkflow(directory)
+    return prependWarning(result, workStateWarning)
   }
 
   // Case 3: Workflow name provided, no goal, active instance matches → resume
   if (workflowName && !goal && activeInstance && activeInstance.definition_id === workflowName) {
-    return resumeActiveWorkflow(directory)
+    const result = resumeActiveWorkflow(directory)
+    return prependWarning(result, workStateWarning)
   }
 
   // Case 4: Workflow name provided with goal → start new instance
@@ -109,7 +116,8 @@ export function handleRunWorkflow(input: {
       }
     }
 
-    return startNewWorkflow(workflowName, goal, sessionId, directory)
+    const result = startNewWorkflow(workflowName, goal, sessionId, directory)
+    return prependWarning(result, workStateWarning)
   }
 
   // Case 5: Workflow name provided, no goal, no matching active instance → start with name only
@@ -184,6 +192,47 @@ export function checkWorkflowContinuation(input: {
     default:
       return { continuationPrompt: null, switchAgent: null }
   }
+}
+
+/**
+ * Check whether a work-state plan is currently active (not complete).
+ * Returns a markdown warning string if active, or null otherwise.
+ */
+function checkWorkStatePlanActive(directory: string): string | null {
+  const state = readWorkState(directory)
+  if (!state) return null
+
+  const progress = getPlanProgress(state.active_plan)
+  if (progress.isComplete) return null
+
+  const status = state.paused ? "paused" : "running"
+  const planName = state.plan_name ?? state.active_plan
+
+  return `## Active Plan Detected
+
+There is currently an active plan being executed: "${planName}"
+Status: ${status} • Progress: ${progress.completed}/${progress.total} tasks complete
+
+Starting a workflow will take priority over the active plan — plan continuation will be suspended while the workflow runs.
+
+**Options:**
+- **Proceed anyway** — the plan will be paused and can be resumed with \`/start-work\` after the workflow completes
+- **Abort the plan first** — abandon the current plan, then start the workflow
+- **Cancel** — don't start the workflow, continue with the plan`
+}
+
+/**
+ * Prepend a work-state warning to a WorkflowHookResult's contextInjection.
+ * If the result already has contextInjection, joins them with a separator.
+ * If the result has no contextInjection, uses the warning alone.
+ * If warning is null, returns the result unchanged.
+ */
+function prependWarning(result: WorkflowHookResult, warning: string | null): WorkflowHookResult {
+  if (!warning) return result
+  if (!result.contextInjection) {
+    return { ...result, contextInjection: warning }
+  }
+  return { ...result, contextInjection: `${warning}\n\n---\n\n${result.contextInjection}` }
 }
 
 // ─── Private helpers ────────────────────────────────────────────────────────

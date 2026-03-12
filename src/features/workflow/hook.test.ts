@@ -20,6 +20,8 @@ import {
   WORKFLOWS_DIR_PROJECT,
 } from "./constants"
 import type { WorkflowDefinition } from "./types"
+import { writeWorkState, createWorkState } from "../work-state/storage"
+import { WEAVE_DIR, PLANS_DIR } from "../work-state/constants"
 
 let testDir: string
 
@@ -337,5 +339,103 @@ describe("checkWorkflowContinuation", () => {
       lastAssistantMessage: "Still working on it...",
     })
     expect(result.continuationPrompt).toBeNull()
+  })
+})
+
+describe("handleRunWorkflow with active work-state plan", () => {
+  /**
+   * Helper: write a plan file with the given number of checked/unchecked checkboxes,
+   * then write work-state pointing to that plan.
+   */
+  function setupWorkStatePlan(
+    dir: string,
+    opts: { completed: number; total: number; paused?: boolean; planName?: string },
+  ) {
+    const plansDir = join(dir, PLANS_DIR)
+    mkdirSync(plansDir, { recursive: true })
+    const name = opts.planName ?? "test-plan"
+    const planPath = join(plansDir, `${name}.md`)
+
+    // Generate checkbox lines
+    const lines: string[] = [`# ${name}`, ""]
+    for (let i = 0; i < opts.completed; i++) {
+      lines.push(`- [x] Task ${i + 1}`)
+    }
+    for (let i = opts.completed; i < opts.total; i++) {
+      lines.push(`- [ ] Task ${i + 1}`)
+    }
+    writeFileSync(planPath, lines.join("\n"))
+
+    const state = createWorkState(planPath, "sess-1", undefined, dir)
+    if (opts.paused) {
+      state.paused = true
+    }
+    writeWorkState(dir, state)
+    return planPath
+  }
+
+  it("shows warning when work-state plan is active and starting new workflow", () => {
+    writeDefinitionFile(testDir)
+    setupWorkStatePlan(testDir, { completed: 2, total: 5 })
+
+    const result = handleRunWorkflow({
+      promptText: makePromptText('test-workflow "Build a thing"'),
+      sessionId: "sess-1",
+      directory: testDir,
+    })
+    expect(result.contextInjection).toContain("Active Plan Detected")
+    expect(result.contextInjection).toContain("test-plan")
+    expect(result.contextInjection).toContain("2/5")
+    expect(result.contextInjection).toContain("Proceed anyway")
+    expect(result.contextInjection).toContain("Abort the plan first")
+    expect(result.contextInjection).toContain("Cancel")
+  })
+
+  it("shows paused status when work-state plan is paused", () => {
+    writeDefinitionFile(testDir)
+    setupWorkStatePlan(testDir, { completed: 1, total: 3, paused: true })
+
+    const result = handleRunWorkflow({
+      promptText: makePromptText('test-workflow "Build a thing"'),
+      sessionId: "sess-1",
+      directory: testDir,
+    })
+    expect(result.contextInjection).toContain("Active Plan Detected")
+    expect(result.contextInjection).toContain("paused")
+  })
+
+  it("no warning when no work-state plan is active", () => {
+    writeDefinitionFile(testDir)
+
+    const result = handleRunWorkflow({
+      promptText: makePromptText('test-workflow "Build a thing"'),
+      sessionId: "sess-1",
+      directory: testDir,
+    })
+    expect(result.contextInjection).not.toContain("Active Plan Detected")
+  })
+
+  it("no warning when work-state plan is complete", () => {
+    writeDefinitionFile(testDir)
+    setupWorkStatePlan(testDir, { completed: 3, total: 3 })
+
+    const result = handleRunWorkflow({
+      promptText: makePromptText('test-workflow "Build a thing"'),
+      sessionId: "sess-1",
+      directory: testDir,
+    })
+    expect(result.contextInjection).not.toContain("Active Plan Detected")
+  })
+
+  it("warning includes progress fraction", () => {
+    writeDefinitionFile(testDir)
+    setupWorkStatePlan(testDir, { completed: 2, total: 5 })
+
+    const result = handleRunWorkflow({
+      promptText: makePromptText('test-workflow "Build a thing"'),
+      sessionId: "sess-1",
+      directory: testDir,
+    })
+    expect(result.contextInjection).toContain("2/5")
   })
 })
