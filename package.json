@@ -25,7 +25,9 @@
     "build": "bun run script/build.ts && tsc --emitDeclarationOnly",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "eval": "bun run script/eval.ts",
+    "eval:coverage": "bun run script/verify-eval-coverage.ts"
   },
   "keywords": [
     "opencode",

@@ -1,0 +1,19 @@
+{
+  "id": "tapestry-default-contract",
+  "title": "Tapestry default prompt enforces sequential execution and review",
+  "phase": "phase1",
+  "tags": ["phase1", "composer", "tapestry"],
+  "target": {
+    "kind": "builtin-agent-prompt",
+    "agent": "tapestry"
+  },
+  "executor": {
+    "kind": "prompt-render"
+  },
+  "evaluators": [
+    { "kind": "xml-sections-present", "sections": ["Role", "PlanExecution", "Verification", "PostExecutionReview"] },
+    { "kind": "contains-all", "patterns": ["You do NOT spawn subagents", "Task tool", "user approval"] },
+    { "kind": "ordered-contains", "patterns": ["<Role>", "<PlanExecution>", "<Verification>", "<PostExecutionReview>"] },
+    { "kind": "tool-policy", "expectations": { "call_weave_agent": false } }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": "pattern-plan-output-contract",
+  "title": "Pattern prompt requires plan-only markdown output",
+  "phase": "phase1",
+  "tags": ["phase1", "default", "pattern"],
+  "target": {
+    "kind": "builtin-agent-prompt",
+    "agent": "pattern"
+  },
+  "executor": {
+    "kind": "prompt-render"
+  },
+  "evaluators": [
+    { "kind": "xml-sections-present", "sections": ["Role", "PlanOutput", "Constraints"] },
+    { "kind": "contains-all", "patterns": [".weave/plans/{slug}.md", "produce the plan ONLY", "- [ ]"] },
+    { "kind": "ordered-contains", "patterns": ["## TL;DR", "## TODOs", "## Verification"] }
+  ]
+}

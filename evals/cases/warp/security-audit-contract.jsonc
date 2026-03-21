@@ -1,0 +1,19 @@
+{
+  "id": "warp-security-audit-contract",
+  "title": "Warp prompt enforces triage, spec checks, and skeptical review",
+  "phase": "phase1",
+  "tags": ["phase1", "default", "warp"],
+  "target": {
+    "kind": "builtin-agent-prompt",
+    "agent": "warp"
+  },
+  "executor": {
+    "kind": "prompt-render"
+  },
+  "evaluators": [
+    { "kind": "xml-sections-present", "sections": ["Role", "Triage", "SecurityReview", "SpecificationCompliance", "Verdict", "SkepticalBias"] },
+    { "kind": "contains-all", "patterns": ["Step 1: Diff scan", "RFC 6749", "REJECT by default when security patterns are detected"] },
+    { "kind": "tool-policy", "expectations": { "write": false, "edit": false, "task": false, "call_weave_agent": false } },
+    { "kind": "min-length", "min": 6000 }
+  ]
+}

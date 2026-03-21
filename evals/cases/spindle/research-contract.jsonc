@@ -1,0 +1,18 @@
+{
+  "id": "spindle-research-contract",
+  "title": "Spindle prompt requires sourced external research",
+  "phase": "phase1",
+  "tags": ["phase1", "default", "spindle"],
+  "target": {
+    "kind": "builtin-agent-prompt",
+    "agent": "spindle"
+  },
+  "executor": {
+    "kind": "prompt-render"
+  },
+  "evaluators": [
+    { "kind": "xml-sections-present", "sections": ["Role", "Research", "Constraints"] },
+    { "kind": "contains-all", "patterns": ["Search the web", "Cite sources", "READ ONLY"] },
+    { "kind": "tool-policy", "expectations": { "write": false, "edit": false, "task": false, "call_weave_agent": false } }
+  ]
+}

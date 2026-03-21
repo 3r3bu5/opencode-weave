@@ -1,0 +1,19 @@
+{
+  "id": "loom-default-contract",
+  "title": "Loom default prompt exposes orchestration contract",
+  "phase": "phase1",
+  "tags": ["phase1", "composer", "loom"],
+  "target": {
+    "kind": "builtin-agent-prompt",
+    "agent": "loom"
+  },
+  "executor": {
+    "kind": "prompt-render"
+  },
+  "evaluators": [
+    { "kind": "xml-sections-present", "sections": ["Role", "Delegation", "PlanWorkflow", "ReviewWorkflow"] },
+    { "kind": "contains-all", "patterns": ["/start-work", "Delegate aggressively", "MUST use Warp"] },
+    { "kind": "ordered-contains", "patterns": ["<Role>", "<Delegation>", "<PlanWorkflow>", "<ReviewWorkflow>", "<Style>"] },
+    { "kind": "min-length", "min": 4000 }
+  ]
+}

@@ -1,0 +1,36 @@
+name: Evals
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  deterministic-evals:
+    name: Deterministic Eval Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run deterministic eval suite
+        run: bun run eval --suite phase1-core
+
+      - name: Verify eval coverage
+        run: bun run eval:coverage
+
+      - name: Upload eval artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-artifacts
+          path: .weave/evals/
+          if-no-files-found: ignore

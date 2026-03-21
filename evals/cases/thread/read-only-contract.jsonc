@@ -1,0 +1,18 @@
+{
+  "id": "thread-read-only-contract",
+  "title": "Thread prompt stays strictly read-only",
+  "phase": "phase1",
+  "tags": ["phase1", "default", "thread"],
+  "target": {
+    "kind": "builtin-agent-prompt",
+    "agent": "thread"
+  },
+  "executor": {
+    "kind": "prompt-render"
+  },
+  "evaluators": [
+    { "kind": "xml-sections-present", "sections": ["Role", "Exploration", "Constraints"] },
+    { "kind": "contains-all", "patterns": ["READ ONLY", "grep/glob/read tools", "Never guess"] },
+    { "kind": "tool-policy", "expectations": { "write": false, "edit": false, "task": false, "call_weave_agent": false } }
+  ]
+}

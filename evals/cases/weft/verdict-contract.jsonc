@@ -1,0 +1,18 @@
+{
+  "id": "weft-verdict-contract",
+  "title": "Weft prompt requires structured approval-biased verdicts",
+  "phase": "phase1",
+  "tags": ["phase1", "default", "weft"],
+  "target": {
+    "kind": "builtin-agent-prompt",
+    "agent": "weft"
+  },
+  "executor": {
+    "kind": "prompt-render"
+  },
+  "evaluators": [
+    { "kind": "xml-sections-present", "sections": ["Role", "ReviewModes", "Verdict", "ApprovalBias", "Constraints"] },
+    { "kind": "contains-all", "patterns": ["**[APPROVE]** or **[REJECT]**", "APPROVE by default", "Max 3 blocking issues"] },
+    { "kind": "tool-policy", "expectations": { "write": false, "edit": false, "task": false, "call_weave_agent": false } }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "id": "loom-disabled-agents-contract",
+  "title": "Loom adapts delegation text when agents are disabled",
+  "phase": "phase1",
+  "tags": ["phase1", "composer", "loom", "variants"],
+  "target": {
+    "kind": "builtin-agent-prompt",
+    "agent": "loom",
+    "variant": {
+      "disabledAgents": ["thread", "warp"]
+    }
+  },
+  "executor": {
+    "kind": "prompt-render"
+  },
+  "evaluators": [
+    { "kind": "contains-all", "patterns": ["Use spindle", "Use pattern"] },
+    { "kind": "excludes-all", "patterns": ["Use thread", "MUST use Warp", "MUST run Warp"] },
+    { "kind": "xml-sections-present", "sections": ["Delegation", "ReviewWorkflow"] }
+  ]
+}

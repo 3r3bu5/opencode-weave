@@ -1,0 +1,46 @@
+{
+  "runId": "eval_fixture",
+  "startedAt": "2026-01-01T00:00:00.000Z",
+  "finishedAt": "2026-01-01T00:00:01.000Z",
+  "suiteId": "phase1-core",
+  "phase": "phase1",
+  "summary": {
+    "totalCases": 1,
+    "passedCases": 1,
+    "failedCases": 0,
+    "errorCases": 0,
+    "totalScore": 1,
+    "normalizedScore": 1,
+    "maxScore": 1
+  },
+  "caseResults": [
+    {
+      "caseId": "fixture-case",
+      "status": "passed",
+      "score": 1,
+      "normalizedScore": 1,
+      "maxScore": 1,
+      "durationMs": 10,
+      "artifacts": {
+        "renderedPrompt": "<Role>fixture</Role>",
+        "agentMetadata": {
+          "agent": "loom",
+          "description": "Fixture",
+          "sourceKind": "composer"
+        },
+        "toolPolicy": {},
+        "promptLength": 20
+      },
+      "assertionResults": [
+        {
+          "evaluatorKind": "contains-all",
+          "passed": true,
+          "score": 1,
+          "maxScore": 1,
+          "message": "Found required pattern: fixture"
+        }
+      ],
+      "errors": []
+    }
+  ]
+}
