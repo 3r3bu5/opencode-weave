@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.2] - 2026-03-26
+
+### Added
+
+- Atomic task system to prevent todo list obliteration — tasks are now created and updated individually, never overwritten in bulk ([46b2911](https://github.com/pgermishuys/opencode-weave/commit/46b2911))
+
+### Fixed
+
+- Make plan structure validation non-blocking so LLM heading deviations don't prevent execution ([b78adc2](https://github.com/pgermishuys/opencode-weave/commit/b78adc2))
+- Align start-work tests with relaxed plan validation — missing `## TODOs` is now a warning, not an error ([8639364](https://github.com/pgermishuys/opencode-weave/commit/8639364))
+
 ## [0.7.1] - 2026-03-25
 
 ### Added
@@ -14,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Eliminate cross-test state pollution in `scanDirectory` spy and display name maps ([0c56483](https://github.com/pgermishuys/opencode-weave/commit/0c56483))
+- Eliminate cross-test state pollution in `scanDirectory` spy and display name maps ([bfb58b0](https://github.com/pgermishuys/opencode-weave/commit/bfb58b0))
 
 ## [0.7.0] - 2026-03-14
 
