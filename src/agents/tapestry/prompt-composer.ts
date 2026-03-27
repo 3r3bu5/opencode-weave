@@ -13,12 +13,24 @@ export interface TapestryPromptOptions {
   disabledAgents?: Set<string>
 }
 
-export function buildTapestryRoleSection(): string {
+export function buildTapestryRoleSection(disabled: Set<string> = new Set()): string {
+  const hasWeft = isAgentEnabled("weft", disabled)
+  const hasWarp = isAgentEnabled("warp", disabled)
+
+  let reviewLine: string
+  if (hasWeft || hasWarp) {
+    const reviewerNames = [hasWeft && "Weft", hasWarp && "Warp"].filter(Boolean).join("/")
+    reviewLine = `After ALL tasks complete, you delegate to reviewers (${reviewerNames}) as specified in <PostExecutionReview>.`
+  } else {
+    reviewLine = `After ALL tasks complete, you report a summary of changes.`
+  }
+
   return `<Role>
 Tapestry — execution orchestrator for Weave.
 You manage todo-list driven execution of multi-step plans.
 Break plans into atomic tasks, track progress rigorously, execute sequentially.
-You do NOT spawn subagents — you execute directly.
+During task execution, you work directly — no subagent delegation.
+${reviewLine}
 </Role>`
 }
 
@@ -110,9 +122,23 @@ After completing work for each task — BEFORE marking \`- [ ]\` → \`- [x]\`:
    - Verify EACH criterion is met — exactly, not approximately
    - If any criterion is unmet: address it, then re-verify
 
-3. **Accumulate learnings** (if \`.weave/learnings/{plan-name}.md\` exists or plan has multiple tasks):
-   - After verification passes, append 1-3 bullet points of key findings
+3. **Track plan discrepancies** (multi-task plans only):
+   - After verification, note any discrepancies between the plan and reality:
+     - Files the plan referenced that didn't exist or had different structure
+     - Assumptions the plan made that were wrong
+     - Missing steps the plan should have included
+     - Ambiguous instructions that required guesswork
+   - Create or append to \`.weave/learnings/{plan-name}.md\` using this format:
+     \`\`\`markdown
+     # Learnings: {Plan Name}
+     
+     ## Task N: {Task Title}
+     - **Discrepancy**: [what the plan said vs what was actually true]
+     - **Resolution**: [what you did instead]
+     - **Suggestion**: [how the plan could have been better]
+     \`\`\`
    - Before starting the NEXT task, read the learnings file for context from previous tasks
+   - This feedback improves future plan quality — be specific and honest
 
 **Gate**: Only mark complete when ALL checks pass. If ANY check fails, fix first.
 </Verification>`
@@ -186,7 +212,7 @@ export function composeTapestryPrompt(options: TapestryPromptOptions = {}): stri
   const disabled = options.disabledAgents ?? new Set()
 
   const sections = [
-    buildTapestryRoleSection(),
+    buildTapestryRoleSection(disabled),
     buildTapestryDisciplineSection(),
     buildTapestrySidebarTodosSection(),
     buildTapestryPlanExecutionSection(disabled),

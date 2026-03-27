@@ -21,8 +21,8 @@ describe("createShuttleAgent", () => {
     expect(config.prompt!.length).toBeGreaterThan(0)
   })
 
-  it("has no denied tools (full access)", () => {
+  it("denies only call_weave_agent", () => {
     const config = createShuttleAgent("claude-sonnet-4")
-    expect(config.tools).toBeUndefined()
+    expect(config.tools).toEqual({ call_weave_agent: false })
   })
 })
