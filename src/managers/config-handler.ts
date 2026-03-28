@@ -112,6 +112,7 @@ export class ConfigHandler {
 
   /**
    * Apply MCP defaults to an agent if not already configured
+   * OpenCode uses 'tools' property to control MCP access per agent
    */
   private applyAgentMcpDefaults(
     agentName: string,
@@ -123,9 +124,25 @@ export class ConfigHandler {
       return agentConfig;
     }
 
-    // If agent already has mcps configured, keep user's override
-    if (agentConfig.mcps !== undefined) {
+    // If agent already has tools configured, keep user's override
+    if (agentConfig.tools !== undefined) {
       return agentConfig;
+    }
+
+    // Build MCP tool patterns for this agent
+    // OpenCode uses glob patterns like "context7_*" to match MCP tools
+    const mcpTools: Record<string, string> = {
+      websearch: 'websearch_exa',
+      context7: 'context7_query_docs',
+      grep_app: 'grep_app_search',
+    };
+
+    const tools: Record<string, boolean> = {};
+    for (const mcp of defaults) {
+      const toolName = mcpTools[mcp];
+      if (toolName) {
+        tools[toolName] = true;
+      }
     }
 
     // Build MCP info section for prompt
@@ -137,10 +154,10 @@ export class ConfigHandler {
       prompt = prompt + '\n\n' + mcpInfo;
     }
 
-    // Apply defaults
+    // Apply defaults via tools property (OpenCode's way for per-agent MCP)
     return {
       ...agentConfig,
-      mcps: defaults,
+      tools: { ...agentConfig.tools, ...tools },
       prompt,
     };
   }
