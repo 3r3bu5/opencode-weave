@@ -36,7 +36,7 @@ flowchart LR
       "skills": ["skill-1", "skill-2"],     // Inject skills
       "prompt_append": "Extra instructions", // Append to prompt
       "display_name": "My Agent Name",      // Custom name shown in UI
-      "mcp": ["websearch", "grep_app"],     // MCP servers for this agent
+      "mcps": ["websearch", "grep_app"],    // MCP servers for this agent
       "tools": {                            // Per-tool toggles
         "bash": true,
         "write": false
@@ -113,13 +113,56 @@ flowchart LR
     }
   },
 
-  // Disable specific MCPs
-  "disabled_mcps": ["websearch"],
+  // Disable specific MCPs (applied after defaults)
+  "disabled_mcps": ["websearch"]
+}
+```
 
-  // Per-agent MCP overrides
+### Default MCP Assignments
+
+Each agent has default MCP assignments based on its role:
+
+| Agent | Mode | Default MCPs | Description |
+|-------|------|-------------|-------------|
+| `loom` | primary | websearch, context7, grep_app | All MCPs for orchestration |
+| `tapestry` | primary | websearch, context7, grep_app | All MCPs for execution |
+| `shuttle` | all | grep_app | Code search for specialist |
+| `pattern` | subagent | websearch, context7, grep_app | All MCPs for planning |
+| `thread` | subagent | grep_app | Code search for exploration |
+| `spindle` | subagent | context7, grep_app | Docs + code for research |
+| `weft` | subagent | websearch | Web search for review |
+| `warp` | subagent | websearch, grep_app | Audit + code for security |
+
+You can override these per-agent:
+
+```jsonc
+{
+  "agents": {
+    "loom": {
+      "mcps": ["context7"]  // Only context7 for Loom
+    }
+  }
+}
+```
+
+Or disable MCPs at the global level:
+
+```jsonc
+{
+  "mcp": {
+    "enabled": {
+      "websearch": false,
+      "context7": false,
+      "grep_app": false
+    }
+  }
+}
+```
+
+> **Note**: If you manually specify `tools` in agent config, MCP defaults won't be applied (to preserve your tool restrictions).
   "agents": {
     "thread": {
-      "mcp": ["websearch", "grep_app"]  // Custom MCPs for this agent
+      "mcps": ["websearch", "grep_app"]  // Custom MCPs for this agent
     }
   },
 
@@ -136,34 +179,48 @@ flowchart LR
 
 Valid agent names for the `agents` config key:
 
-| Config Key | Display Name | Default Role |
-|------------|-------------|-------------|
-| `loom` | Loom (Main Orchestrator) | Primary orchestrator |
-| `tapestry` | Tapestry (Execution Orchestrator) | Plan executor |
-| `pattern` | pattern | Strategic planner |
-| `thread` | thread | Codebase explorer |
-| `spindle` | spindle | External researcher |
-| `weft` | weft | Reviewer/auditor |
-| `warp` | warp | Security auditor |
-| `shuttle` | shuttle | Category specialist |
+| Config Key | Mode | Display Name (Default) | Default Role |
+|------------|------|----------------------|-------------|
+| `loom` | primary | Loom (Main Orchestrator) | Primary orchestrator |
+| `tapestry` | primary | Tapestry (Execution Orchestrator) | Plan executor |
+| `shuttle` | all | shuttle | Category specialist |
+| `pattern` | subagent | pattern | Strategic planner |
+| `thread` | subagent | thread | Codebase explorer |
+| `spindle` | subagent | spindle | External researcher |
+| `weft` | subagent | weft | Reviewer/auditor |
+| `warp` | subagent | warp | Security auditor |
 
-> **Note**: Loom and Tapestry get title-cased display names with role descriptions. Subagents keep lowercase names.
+> **Note**: Agent mode determines UI behavior:
+> - **Primary** (`loom`, `tapestry`): Display name keys shown in UI (e.g., "Ra", "Anubis")
+> - **All** (`shuttle`): Both canonical and display name keys (for Task tool + UI)
+> - **Subagent** (`pattern`, `thread`, `spindle`, `weft`, `warp`): Canonical keys only (Task tool compatibility)
 
-### Custom Display Names
+### Custom Display Names with Egyptian Names Example
 
-You can override the display name shown in the OpenCode UI for any builtin agent using the `display_name` field. This is useful for users who prefer agent names in their native language or a project-specific alias.
+You can override the display name shown in the OpenCode UI for any builtin agent using the `display_name` field. This is useful for Egyptian-themed names or project-specific aliases.
 
 ```jsonc
 {
   "agents": {
-    // Rename agents to Japanese
-    "loom": { "display_name": "織機 (メインオーケストレーター)" },
-    "thread": { "display_name": "糸 (コードベースエクスプローラー)" },
-    "pattern": { "display_name": "設計 (戦略プランナー)" },
-    "weft": { "display_name": "レビュー担当" }
+    // Egyptian mythology names
+    "loom": { "display_name": "Ra (Orchestrator)" },
+    "tapestry": { "display_name": "Anubis (Executor)" },
+    "shuttle": { "display_name": "Bastet (Specialist)" },
+    "pattern": { "display_name": "Thoth (Planner)" },
+    "thread": { "display_name": "Horus (Explorer)" },
+    "spindle": { "display_name": "Seshat (Researcher)" },
+    "weft": { "display_name": "Maat (Reviewer)" },
+    "warp": { "display_name": "Sekhmet (Security)" }
   }
 }
 ```
+
+**How it works**:
+- Config uses **canonical keys** (`loom`, `tapestry`, `shuttle`, etc.) — this ensures Task tool works
+- `display_name` property sets the UI label (e.g., "Ra (Orchestrator)")
+- Primary agents (`loom`, `tapestry`): Display name becomes the config key for UI
+- Subagents (`thread`, `spindle`, etc.): Keep canonical keys (Task tool validation)
+- Dual-mode agent (`shuttle`): Both canonical AND display name keys registered
 
 **Notes**:
 - The `display_name` only affects the UI label — all internal systems (workflows, `disabled_agents`, prompt references) continue to use the original config key (e.g., `"loom"`).

@@ -146,11 +146,6 @@ export class ConfigHandler {
       return agentConfig;
     }
 
-    // If agent already has tools configured, keep user's override
-    if (agentConfig.tools !== undefined) {
-      return agentConfig;
-    }
-
     // Build MCP tool patterns for this agent
     // OpenCode uses glob patterns like "context7_*" to match MCP tools
     const mcpTools: Record<string, string> = {
@@ -167,6 +162,10 @@ export class ConfigHandler {
       }
     }
 
+    // Merge MCP tools with existing tools (preserves subagent restrictions like write: false)
+    const existingTools = agentConfig.tools || {};
+    const mergedTools = { ...existingTools, ...tools };
+
     // Build MCP info section for prompt
     const mcpInfo = this.buildMcpInfoSection(defaults);
 
@@ -176,10 +175,11 @@ export class ConfigHandler {
       prompt = prompt + '\n\n' + mcpInfo;
     }
 
-    // Apply defaults via tools property (OpenCode's way for per-agent MCP)
+    // Apply via tools property (OpenCode's way for per-agent MCP)
+    // Always merge MCP tools with existing tools to preserve subagent restrictions
     return {
       ...agentConfig,
-      tools: { ...(agentConfig.tools || {}), ...tools },
+      tools: mergedTools,
       prompt,
     };
   }

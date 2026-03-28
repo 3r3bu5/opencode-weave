@@ -63,16 +63,16 @@ Detailed guides:
 
 ## Agents
 
-| Agent | Role | Mode | Description |
-| :--- | :--- | :--- | :--- |
-| **Loom** | main orchestrator | primary | The central team lead that plans tasks, coordinates work, and delegates to specialized agents. |
-| **Tapestry** | execution orchestrator | primary | Manages todo-list driven execution of multi-step plans, focusing on sequential implementation without subagent spawning. |
-| **Shuttle** | category worker | all | Domain-specific specialist worker with full tool access, dispatched dynamically via the category system. |
-| **Pattern** | strategic planner | subagent | Analyzes requirements and produces detailed implementation plans with research and dependency mapping. |
-| **Thread** | codebase explorer | subagent | Fast, read-only codebase navigation and analysis using grep, glob, and read tools. |
-| **Spindle** | external researcher | subagent | Performs external documentation lookups and reference searches, providing synthesized answers with source citations. |
-| **Weft** | reviewer/auditor | subagent | Reviews completed work and plans with a critical but fair eye, rejecting only for true blocking issues. |
-| **Warp** | security auditor | subagent | Audits code changes for security vulnerabilities and specification compliance with a skeptical bias. |
+| Agent | Role | Mode | Default Display Name | Egyptian Name Example | Description |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Loom** | main orchestrator | primary | Loom (Main Orchestrator) | Ra (Orchestrator) | The central team lead that plans tasks, coordinates work, and delegates to specialized agents. |
+| **Tapestry** | execution orchestrator | primary | Tapestry (Execution Orchestrator) | Anubis (Executor) | Manages todo-list driven execution of multi-step plans, focusing on sequential implementation without subagent spawning. |
+| **Shuttle** | category worker | all | shuttle | Bastet (Specialist) | Domain-specific specialist worker with full tool access, dispatched dynamically via the category system. |
+| **Pattern** | strategic planner | subagent | pattern | Thoth (Planner) | Analyzes requirements and produces detailed implementation plans with research and dependency mapping. |
+| **Thread** | codebase explorer | subagent | thread | Horus (Explorer) | Fast, read-only codebase navigation and analysis using grep, glob, and read tools. |
+| **Spindle** | external researcher | subagent | spindle | Seshat (Researcher) | Performs external documentation lookups and reference searches, providing synthesized answers with source citations. |
+| **Weft** | reviewer/auditor | subagent | weft | Maat (Reviewer) | Reviews completed work and plans with a critical but fair eye, rejecting only for true blocking issues. |
+| **Warp** | security auditor | subagent | warp | Sekhmet (Security) | Audits code changes for security vulnerabilities and specification compliance with a skeptical bias. |
 
 ### Agent Modes
 
@@ -241,7 +241,7 @@ The configuration uses JSONC format, allowing for comments and trailing commas.
     },
     "thread": { 
       "model": "openai/gpt-4o-mini",
-      "mcp": ["websearch", "grep_app"]
+      "mcps": ["websearch", "grep_app"]
     }
   },
   // Category-based dispatch overrides
@@ -350,7 +350,7 @@ The plugin automatically detects the `EXA_API_KEY` environment variable and incl
   // Override MCPs per agent
   "agents": {
     "thread": {
-      "mcp": ["websearch", "grep_app"]
+      "mcps": ["websearch", "grep_app"]
     }
   }
 }
