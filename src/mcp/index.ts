@@ -1,3 +1,4 @@
+import { getAgentMcpDefaults } from './agent-defaults';
 import type { McpConfig, McpServerConfig } from './types';
 import { BUILTIN_MCP_SERVERS } from './types';
 
@@ -38,5 +39,6 @@ export function getAvailableMcps(): string[] {
   return Object.keys(BUILTIN_MCP_SERVERS);
 }
 
+export { getAgentMcpDefaults } from './agent-defaults';
 export type { McpConfig, McpServerConfig } from './types';
 export { BUILTIN_MCP_SERVERS } from './types';

@@ -16,6 +16,8 @@ export const AgentOverrideConfigSchema = z.object({
   maxTokens: z.number().optional(),
   /** Custom display name shown in UI (overrides the default builtin name) */
   display_name: z.string().optional(),
+  /** MCP servers to enable for this agent */
+  mcps: z.array(z.string()).optional(),
 });
 
 export const AgentOverridesSchema = z.record(

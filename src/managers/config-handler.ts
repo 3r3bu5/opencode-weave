@@ -1,7 +1,7 @@
 import type { AgentConfig } from '@opencode-ai/sdk';
 import type { WeaveConfig } from '../config/schema';
 import { BUILTIN_COMMANDS } from '../features/builtin-commands';
-import { getMcpServers } from '../mcp';
+import { getAgentMcpDefaults, getMcpServers } from '../mcp';
 import { getAgentDisplayName } from '../shared/agent-display-names';
 
 /** Input to the config pipeline */
@@ -99,12 +99,40 @@ export class ConfigHandler {
         ? { ...agentConfig, ...override }
         : { ...agentConfig };
 
+      // Apply MCP defaults if not overridden
+      const agentWithMcps = this.applyAgentMcpDefaults(name, merged);
+
       // Remap key to display name for OpenCode UI
       const displayName = getAgentDisplayName(name);
-      result[displayName] = merged;
+      result[displayName] = agentWithMcps;
     }
 
     return result;
+  }
+
+  /**
+   * Apply MCP defaults to an agent if not already configured
+   */
+  private applyAgentMcpDefaults(
+    agentName: string,
+    agentConfig: AgentConfig,
+  ): AgentConfig {
+    // Get defaults for this agent type
+    const defaults = getAgentMcpDefaults(agentName);
+    if (defaults.length === 0) {
+      return agentConfig;
+    }
+
+    // If agent already has mcps configured, keep user's override
+    if (agentConfig.mcps !== undefined) {
+      return agentConfig;
+    }
+
+    // Apply defaults
+    return {
+      ...agentConfig,
+      mcps: defaults,
+    };
   }
 
   /**
