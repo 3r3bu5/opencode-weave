@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from 'zod';
 
 export const AgentOverrideConfigSchema = z.object({
   model: z.string().optional(),
@@ -12,13 +12,16 @@ export const AgentOverrideConfigSchema = z.object({
   prompt_append: z.string().optional(),
   tools: z.record(z.string(), z.boolean()).optional(),
   disable: z.boolean().optional(),
-  mode: z.enum(["subagent", "primary", "all"]).optional(),
+  mode: z.enum(['subagent', 'primary', 'all']).optional(),
   maxTokens: z.number().optional(),
   /** Custom display name shown in UI (overrides the default builtin name) */
   display_name: z.string().optional(),
-})
+});
 
-export const AgentOverridesSchema = z.record(z.string(), AgentOverrideConfigSchema)
+export const AgentOverridesSchema = z.record(
+  z.string(),
+  AgentOverrideConfigSchema,
+);
 
 export const CategoryConfigSchema = z.object({
   description: z.string().optional(),
@@ -31,35 +34,44 @@ export const CategoryConfigSchema = z.object({
   tools: z.record(z.string(), z.boolean()).optional(),
   prompt_append: z.string().optional(),
   disable: z.boolean().optional(),
-})
+});
 
-export const CategoriesConfigSchema = z.record(z.string(), CategoryConfigSchema)
+export const CategoriesConfigSchema = z.record(
+  z.string(),
+  CategoryConfigSchema,
+);
 
 export const BackgroundConfigSchema = z.object({
   defaultConcurrency: z.number().min(1).optional(),
   providerConcurrency: z.record(z.string(), z.number().min(0)).optional(),
   modelConcurrency: z.record(z.string(), z.number().min(0)).optional(),
   staleTimeoutMs: z.number().min(60000).optional(),
-})
+});
 
 export const TmuxConfigSchema = z.object({
   enabled: z.boolean().optional(),
   layout: z
-    .enum(["main-horizontal", "main-vertical", "tiled", "even-horizontal", "even-vertical"])
+    .enum([
+      'main-horizontal',
+      'main-vertical',
+      'tiled',
+      'even-horizontal',
+      'even-vertical',
+    ])
     .optional(),
   main_pane_size: z.number().optional(),
-})
+});
 
 export const ExperimentalConfigSchema = z.object({
   plugin_load_timeout_ms: z.number().min(1000).optional(),
   context_window_warning_threshold: z.number().min(0).max(1).optional(),
   context_window_critical_threshold: z.number().min(0).max(1).optional(),
-})
+});
 
 export const DelegationTriggerSchema = z.object({
   domain: z.string(),
   trigger: z.string(),
-})
+});
 
 export const CustomAgentConfigSchema = z.object({
   /** System prompt — either inline text or path to a .md file (resolved relative to config) */
@@ -71,13 +83,15 @@ export const CustomAgentConfigSchema = z.object({
   /** Display name shown in UI */
   display_name: z.string().optional(),
   /** Agent mode: subagent (default), primary, or all */
-  mode: z.enum(["subagent", "primary", "all"]).optional(),
+  mode: z.enum(['subagent', 'primary', 'all']).optional(),
   /** Fallback model chain for model resolution */
   fallback_models: z.array(z.string()).optional(),
   /** Agent category for grouping */
-  category: z.enum(["exploration", "specialist", "advisor", "utility"]).optional(),
+  category: z
+    .enum(['exploration', 'specialist', 'advisor', 'utility'])
+    .optional(),
   /** Cost classification for tool selection table */
-  cost: z.enum(["FREE", "CHEAP", "EXPENSIVE"]).optional(),
+  cost: z.enum(['FREE', 'CHEAP', 'EXPENSIVE']).optional(),
   /** Sampling temperature */
   temperature: z.number().min(0).max(2).optional(),
   /** Top-p sampling */
@@ -92,9 +106,12 @@ export const CustomAgentConfigSchema = z.object({
   triggers: z.array(DelegationTriggerSchema).optional(),
   /** Description shown alongside the agent name */
   description: z.string().optional(),
-})
+});
 
-export const CustomAgentsConfigSchema = z.record(z.string(), CustomAgentConfigSchema)
+export const CustomAgentsConfigSchema = z.record(
+  z.string(),
+  CustomAgentConfigSchema,
+);
 
 export const AnalyticsConfigSchema = z.object({
   /** Whether analytics is enabled. Defaults to false (opt-in). */
@@ -105,11 +122,25 @@ export const AnalyticsConfigSchema = z.object({
    * false (opt-in) to avoid unexpected token usage.
    */
   use_fingerprint: z.boolean().optional(),
-})
+});
 
 export const WorkflowConfigSchema = z.object({
   disabled_workflows: z.array(z.string()).optional(),
-})
+});
+
+/**
+ * MCP configuration for enabling built-in MCP servers
+ */
+export const McpEnabledSchema = z.object({
+  websearch: z.boolean().optional(),
+  context7: z.boolean().optional(),
+  grep_app: z.boolean().optional(),
+});
+
+export const McpSchema = z.object({
+  enabled: McpEnabledSchema.optional(),
+  disabled_mcps: z.array(z.string()).optional(),
+});
 
 export const WeaveConfigSchema = z.object({
   $schema: z.string().optional(),
@@ -125,17 +156,19 @@ export const WeaveConfigSchema = z.object({
   tmux: TmuxConfigSchema.optional(),
   experimental: ExperimentalConfigSchema.optional(),
   workflows: WorkflowConfigSchema.optional(),
-})
+  mcp: McpSchema.optional(),
+});
 
-export type AgentOverrideConfig = z.infer<typeof AgentOverrideConfigSchema>
-export type AgentOverrides = z.infer<typeof AgentOverridesSchema>
-export type CustomAgentConfig = z.infer<typeof CustomAgentConfigSchema>
-export type CustomAgentsConfig = z.infer<typeof CustomAgentsConfigSchema>
-export type CategoryConfig = z.infer<typeof CategoryConfigSchema>
-export type CategoriesConfig = z.infer<typeof CategoriesConfigSchema>
-export type BackgroundConfig = z.infer<typeof BackgroundConfigSchema>
-export type AnalyticsConfig = z.infer<typeof AnalyticsConfigSchema>
-export type TmuxConfig = z.infer<typeof TmuxConfigSchema>
-export type ExperimentalConfig = z.infer<typeof ExperimentalConfigSchema>
-export type WorkflowConfig = z.infer<typeof WorkflowConfigSchema>
-export type WeaveConfig = z.infer<typeof WeaveConfigSchema>
+export type AgentOverrideConfig = z.infer<typeof AgentOverrideConfigSchema>;
+export type AgentOverrides = z.infer<typeof AgentOverridesSchema>;
+export type CustomAgentConfig = z.infer<typeof CustomAgentConfigSchema>;
+export type CustomAgentsConfig = z.infer<typeof CustomAgentsConfigSchema>;
+export type CategoryConfig = z.infer<typeof CategoryConfigSchema>;
+export type CategoriesConfig = z.infer<typeof CategoriesConfigSchema>;
+export type BackgroundConfig = z.infer<typeof BackgroundConfigSchema>;
+export type AnalyticsConfig = z.infer<typeof AnalyticsConfigSchema>;
+export type TmuxConfig = z.infer<typeof TmuxConfigSchema>;
+export type ExperimentalConfig = z.infer<typeof ExperimentalConfigSchema>;
+export type WorkflowConfig = z.infer<typeof WorkflowConfigSchema>;
+export type McpConfig = z.infer<typeof McpSchema>;
+export type WeaveConfig = z.infer<typeof WeaveConfigSchema>;
