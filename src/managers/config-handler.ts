@@ -5,7 +5,10 @@ import { getAgentMcpDefaults, getMcpServers } from '../mcp';
 import { getAgentDisplayName } from '../shared/agent-display-names';
 
 /** Primary agents that appear in UI - remapped to display name keys */
-const PRIMARY_AGENT_KEYS = new Set(['loom', 'tapestry', 'shuttle']);
+const PRIMARY_AGENT_KEYS = new Set(['loom', 'tapestry']);
+
+/** Agents with "all" mode - need BOTH canonical key (Task) AND display name key (UI) */
+const DUAL_MODE_AGENT_KEYS = new Set(['shuttle']);
 
 /** Input to the config pipeline */
 export interface ConfigPipelineInput {
@@ -110,11 +113,15 @@ export class ConfigHandler {
       const agentWithMcps = this.applyAgentMcpDefaults(name, merged);
 
       // Handle different agent types:
-      // - Primary agents (loom, tapestry): display name key for UI
-      // - Dual-mode agents (shuttle): display name key only (UI shows Bastet, Task validates shuttle separately)
+      // - Dual-mode agents (shuttle): BOTH canonical key (Task) AND display name key (UI)
+      // - Primary agents (loom, tapestry): display name key for UI only
       // - Subagents: canonical key (Task tool compatibility)
-      if (PRIMARY_AGENT_KEYS.has(name) || DUAL_MODE_AGENT_KEYS.has(name)) {
-        // Primary and dual-mode agents: display name key for UI
+      if (DUAL_MODE_AGENT_KEYS.has(name)) {
+        // Add both canonical key (for Task) and display name key (for UI)
+        result[name] = agentWithMcps;
+        result[getAgentDisplayName(name)] = agentWithMcps;
+      } else if (PRIMARY_AGENT_KEYS.has(name)) {
+        // Primary agents: display name key for UI only
         result[getAgentDisplayName(name)] = agentWithMcps;
       } else {
         // Subagents: canonical key for Task tool compatibility
