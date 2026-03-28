@@ -91,6 +91,7 @@ sequenceDiagram
 | Tools | `src/tools/` | Tool registry & per-agent permissions |
 | Skills | `src/features/skill-loader/` | Skill discovery & resolution |
 | Managers | `src/managers/` | ConfigHandler, BackgroundManager, SkillMcpManager |
+| MCP Manager | `src/mcp/` | MCP server registry and agent defaults |
 
 ## The Agent System
 
@@ -187,6 +188,103 @@ Skill sources (in priority order):
 1. **Project**: `.opencode/skills/`
 2. **User**: `~/.config/opencode/weave-opencode/skills/`
 3. **Builtin**: Weave's bundled skills
+
+## MCP (Model Context Protocol)
+
+Weave supports MCP servers for extended capabilities. Built-in MCPs are automatically configured and available to agents based on their role.
+
+### Built-in MCPs
+
+| MCP Server | Purpose | Type | Default Agents |
+|------------|---------|------|----------------|
+| `websearch` | Web search via Exa AI | Remote | loom, tapestry, weft, warp |
+| `context7` | Library documentation lookup | Remote | spindle, loom, tapestry |
+| `grep_app` | Enhanced code search | Remote | thread, spindle, warp, shuttle, loom, tapestry |
+
+### Websearch with EXA
+
+The `websearch` MCP uses **EXA's remote MCP server** for web search capabilities:
+
+```
+URL: https://mcp.exa.ai/mcp?tools=web_search_exa
+Auth: API key via EXA_API_KEY environment variable
+OAuth: Disabled (uses API key authentication)
+```
+
+**Configuration**:
+- Works out-of-the-box with rate-limited access (no API key required)
+- For production use with higher rate limits, set the `EXA_API_KEY` environment variable
+- The plugin automatically detects and uses the API key when available
+
+```bash
+# Set EXA API key for authenticated websearch
+export EXA_API_KEY="your-exa-api-key"
+```
+
+### MCP Resolution
+
+```
+Config: agents.{name}.mcp → User override for specific agent
+     ↓ (if not set)
+Default: AGENT_MCP_DEFAULTS → Smart defaults per agent role
+     ↓
+Enabled: mcp.enabled → Global enable/disable per MCP
+     ↓
+Final: Result passed to OpenCode via config.mcps
+```
+
+### Configuration
+
+```jsonc
+{
+  // Enable/disable built-in MCPs globally
+  "mcp": {
+    "enabled": {
+      "websearch": true,
+      "context7": true,
+      "grep_app": true
+    }
+  },
+  
+  // Custom MCP servers
+  "mcp": {
+    "servers": {
+      "my-server": {
+        "type": "local",
+        "command": ["npx", "-y", "my-mcp-server"],
+        "environment": {},
+        "timeout": 60000
+      }
+    }
+  },
+  
+  // Disable MCPs globally
+  "disabled_mcps": ["websearch"],
+  
+  // Override MCPs per agent
+  "agents": {
+    "thread": {
+      "mcp": ["websearch", "grep_app"]
+    }
+  }
+}
+```
+
+> **MCP Server Types**:
+> - `local` — Runs a local MCP server via command (stdio)
+> - `remote` — Connects to a remote MCP server via HTTP
+
+### Agent MCP Defaults
+
+| Agent | Default MCPs | Rationale |
+|-------|--------------|-----------|
+| loom | all (websearch, context7, grep_app) | Orchestrator needs full access |
+| tapestry | all | Execution benefits from all tools |
+| thread | grep_app | Codebase exploration |
+| spindle | context7, grep_app | Documentation and code search |
+| warp | websearch, grep_app | Security research and code analysis |
+| weft | websearch | Review research |
+| shuttle | grep_app | Domain-specific code work |
 
 ## Further Reading
 

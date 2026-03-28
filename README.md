@@ -6,11 +6,46 @@
 
 Weave is a lean OpenCode plugin with multi-agent orchestration. It provides a cohesive framework for weaving agents, tools, and skills into structured workflows. By delegating complex tasks to specialized agents and monitoring execution state through hooks, Weave ensures reliable and efficient project development.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Documentation](#documentation)
+- [Agents](#agents)
+  - [Agent Modes](#agent-modes)
+  - [Agent Details](#agent-details)
+- [Workflow](#workflow)
+  - [When the Full Workflow Is Used](#when-the-full-workflow-is-used)
+  - [1. Plan](#1-plan)
+  - [2. Review (Optional)](#2-review-optional)
+  - [3. Execute](#3-execute)
+  - [Resuming Interrupted Work](#resuming-interrupted-work)
+  - [Quick Tasks (No Plan Needed)](#quick-tasks-no-plan-needed)
+- [Installation](#installation)
+  - [Prerequisites](#prerequisites)
+  - [Step 1: Add to opencode.json](#step-1-add-to-opencodejson)
+  - [Step 2: Restart OpenCode](#step-2-restart-opencode)
+  - [Troubleshooting](#troubleshooting)
+- [Uninstalling](#uninstalling)
+- [Configuration](#configuration)
+  - [Example Configuration](#example-configuration)
+  - [Configuration Fields](#configuration-fields)
+- [Features](#features)
+  - [Hooks](#hooks)
+  - [Skills](#skills)
+  - [MCP (Model Context Protocol)](#mcp-model-context-protocol)
+  - [Background Agents](#background-agents)
+  - [Tool Permissions](#tool-permissions)
+- [Provider Configurations](./docs/provider-configurations.md)
+- [Development](#development)
+- [Acknowledgments](#acknowledgments)
+- [License](#license)
+
 ## Overview
 
 - **8 specialized agents** with weaving-themed names designed for specific roles in the development lifecycle.
 - **Category-based task dispatch** to route work to domain-optimized models and configurations.
 - **Skill system** for injecting domain-specific expertise that modifies agent behavior via prompt orchestration.
+- **MCP (Model Context Protocol)** — Built-in MCP servers (websearch, context7, grep_app) for extended capabilities.
 - **Background agent management** for parallel asynchronous sub-agent execution with concurrency control.
 - **Context window monitoring** to track token usage and suggest recovery strategies when limits are approached.
 - **Tool permissions** enforced per-agent to ensure safety and prevent unauthorized file modifications.
@@ -18,7 +53,13 @@ Weave is a lean OpenCode plugin with multi-agent orchestration. It provides a co
 
 ## Documentation
 
-For detailed guides on configuration, workflows, agents, features, and more, visit the **[Weave documentation](https://tryweave.io/docs/)**.
+Visit [tryweave.io](https://tryweave.io) for more information, or head straight to the [documentation](https://tryweave.io/docs/) for detailed guides on setup, configuration, and usage.
+
+Detailed guides:
+- [Configuration Reference](./docs/configuration.md) — Full config schema
+- [Provider Configurations](./docs/provider-configurations.md) — Model setup per provider
+- [Agent Interactions](./docs/agent-interactions.md) — How agents work together
+- [Architecture](./docs/architecture.md) — Technical overview
 
 ## Agents
 
@@ -33,9 +74,90 @@ For detailed guides on configuration, workflows, agents, features, and more, vis
 | **Weft** | reviewer/auditor | subagent | Reviews completed work and plans with a critical but fair eye, rejecting only for true blocking issues. |
 | **Warp** | security auditor | subagent | Audits code changes for security vulnerabilities and specification compliance with a skeptical bias. |
 
+### Agent Modes
+
+- `primary`: Respects the user-selected model in the OpenCode UI.
+- `subagent`: Uses its own model or fallback chain, ignoring UI selection for predictable specialization.
+- `all`: Available in both primary and subagent contexts.
+
+### Agent Details
+
+**Loom** is the central orchestrator and the default entry point for every request. It breaks down complex problems into tasks, decides which agents to delegate to, and tracks progress obsessively via todo lists. Loom never implements code directly — it plans and delegates. For quick fixes it acts immediately; for complex work it kicks off the plan → review → execute workflow.
+
+**Pattern** is the strategic planner. When a task requires 5+ steps or involves architectural decisions, Loom delegates to Pattern, which researches the codebase (via Thread) and external docs (via Spindle), then produces a structured implementation plan saved to `.weave/plans/{name}.md`. Plans use `- [ ]` checkboxes for every actionable task. Pattern never writes code — only plans.
+
+**Weft** is the reviewer and auditor. It validates plans before execution and reviews completed work after implementation. Weft is approval-biased and only rejects for true blocking issues (max 3 per review). It checks that file references are correct, tasks have sufficient context, implementations match requirements, and no stubs or TODOs are left behind. Weft is read-only.
+
+**Warp** is the security and specification compliance auditor. It reviews code changes for security vulnerabilities (injection, auth bypass, token handling, crypto weaknesses) and verifies compliance with standards like OAuth2, OIDC, WebAuthn, and JWT. Warp has a skeptical bias — unlike Weft, it rejects by default when security patterns are detected. It self-triages to fast-exit on non-security changes, and can webfetch RFCs for verification. Warp is read-only.
+
+**Tapestry** is the execution engine. Activated by the `/start-work` command, it reads a plan from `.weave/plans/` and works through tasks sequentially — writing code, running commands, verifying output, and marking checkboxes as it goes. Tapestry cannot spawn subagents; it focuses on heads-down implementation. If interrupted, it resumes from the first unchecked task.
+
+**Thread** is the fast codebase explorer. Loom delegates to Thread whenever it needs to understand code structure, find files, or answer questions about the repository. Thread uses grep, glob, and read tools with zero creativity (temperature 0.0) to return precise, factual answers with file paths and line numbers. Thread is read-only.
+
+**Spindle** is the external researcher. When Loom needs documentation for a library, API reference, or any information outside the codebase, Spindle fetches URLs, reads docs, and synthesizes findings with source citations. Spindle is read-only.
+
+**Shuttle** is the domain specialist. When work falls into a specific category (e.g., visual engineering, data processing), Loom dispatches Shuttle with full tool access to execute the task. Shuttle's model and configuration can be overridden per-category for domain-optimized performance.
+
+## Workflow
+
+Weave uses a structured **Plan → Review → Execute** workflow for complex tasks. Simple requests are handled directly by Loom without the full cycle.
+
+### When the Full Workflow Is Used
+
+- Tasks requiring 5+ steps or architectural decisions
+- Multi-file refactors or new feature implementations
+- Work that benefits from a reviewable plan before execution
+
+### 1. Plan
+
+Loom delegates to **Pattern**, which researches the codebase and produces a detailed implementation plan:
+
+```
+User Request → Loom (assesses complexity) → Pattern (researches + plans)
+                                              ↓
+                                     .weave/plans/{name}.md
+```
+
+The plan includes clear objectives, deliverables, and atomic tasks marked with `- [ ]` checkboxes. Pattern never writes code.
+
+### 2. Review (Optional)
+
+For high-stakes or complex plans, Loom delegates to **Weft** to validate the plan before execution:
+
+```
+.weave/plans/{name}.md → Weft (validates) → APPROVE or REJECT
+```
+
+Weft checks that referenced files exist, tasks have sufficient context, and there are no contradictions. If rejected, issues are sent back to Pattern for revision.
+
+### 3. Execute
+
+The user runs `/start-work` to begin execution:
+
+```
+/start-work [plan-name] → creates .weave/state.json → switches to Tapestry
+```
+
+**Tapestry** reads the plan and executes tasks sequentially:
+
+1. Find the first unchecked `- [ ]` task
+2. Implement the task (write code, run commands, create files)
+3. Verify completion (read files, run tests, check acceptance criteria)
+4. Mark the checkbox `- [x]`
+5. Move to the next unchecked task
+6. When all tasks are complete, report a final summary
+
+### Resuming Interrupted Work
+
+If a session is interrupted, running `/start-work` again resumes from the first unchecked task — no re-planning or restarting. The work state is persisted in `.weave/state.json`, so progress is never lost.
+
+### Quick Tasks (No Plan Needed)
+
+For simple requests — single-file fixes, quick questions, small edits — Loom handles the work directly or delegates to the appropriate agent without creating a formal plan.
+
 ## Installation
 
-This package is published on [npm](https://www.npmjs.com/package/@opencode_weave/weave).
+This package is published on [npm](https://www.npmjs.com/package/@a4hgehad/weave-mcp).
 
 ### Prerequisites
 
@@ -47,7 +169,7 @@ Add the plugin to your `opencode.json` file:
 
 ```json
 {
-  "plugin": ["@opencode_weave/weave"]
+  "plugin": ["@a4hgehad/weave-mcp"]
 }
 ```
 
@@ -59,7 +181,7 @@ OpenCode automatically installs npm plugins at startup — no manual `bun add` o
 
 | Issue | Solution |
 |-------|----------|
-| `404 Not Found` | Ensure the package name is correct: `@opencode_weave/weave`. |
+| `404 Not Found` | Ensure the package name is correct: `@a4hgehad/weave-mcp`. |
 | Package not found after publish | npm can take a few minutes to propagate. Wait and retry. |
 
 ## Uninstalling
@@ -68,7 +190,7 @@ To fully remove the Weave plugin from your project:
 
 ### Step 1: Remove from opencode.json
 
-Delete the `@opencode_weave/weave` entry from the `plugin` array in your `opencode.json`:
+Delete the `@a4hgehad/weave-mcp` entry from the `plugin` array in your `opencode.json`:
 
 ```json
 {
@@ -97,6 +219,165 @@ If you no longer use Weave in any project, remove the global configuration:
 ```bash
 rm -f ~/.config/opencode/weave-opencode.jsonc ~/.config/opencode/weave-opencode.json
 ```
+
+## Configuration
+
+Weave searches for configuration files in the following locations, merging them in order (user config → project config → defaults):
+
+- **Project**: `.opencode/weave-opencode.jsonc` or `.opencode/weave-opencode.json`
+- **User**: `~/.config/opencode/weave-opencode.jsonc` or `~/.config/opencode/weave-opencode.json`
+
+The configuration uses JSONC format, allowing for comments and trailing commas.
+
+### Example Configuration
+
+```jsonc
+{
+  // Override agent models and parameters
+  "agents": {
+    "loom": { 
+      "model": "anthropic/claude-3-5-sonnet", 
+      "temperature": 0.1 
+    },
+    "thread": { 
+      "model": "openai/gpt-4o-mini",
+      "mcp": ["websearch", "grep_app"]
+    }
+  },
+  // Category-based dispatch overrides
+  "categories": {
+    "visual-engineering": { 
+      "model": "google/gemini-2-pro" 
+    }
+  },
+  // MCP configuration
+  "mcp": {
+    "enabled": {
+      "websearch": true,
+      "context7": true,
+      "grep_app": true
+    }
+  },
+  // Selective feature toggling
+  "disabled_hooks": [],
+  "disabled_agents": [],
+  "disabled_tools": [],
+  "disabled_skills": [],
+  "disabled_mcps": [],
+  // Background agent concurrency limits
+  "background": {
+    "defaultConcurrency": 5
+  }
+}
+```
+
+### Configuration Fields
+
+- `agents` — Override model, temperature, prompt_append, tools, skills, and mcp per agent.
+- `categories` — Custom model and tool configurations for category-based dispatch.
+- `mcp` — Configure built-in and custom MCP servers.
+- `disabled_mcps` — Disable specific MCP servers globally.
+- `disabled_hooks` / `disabled_agents` / `disabled_tools` / `disabled_skills` — Selective feature disabling.
+- `background` — Concurrency limits and timeouts for parallel background agents.
+- `tmux` — Terminal multiplexer layout settings for TUI integration.
+- `skills` — Custom skill discovery paths and recursion settings.
+- `experimental` — Plugin load timeouts and context window threshold adjustments.
+
+## Features
+
+### Hooks
+
+Weave includes 5 built-in hooks that monitor and modify agent behavior:
+
+- `context-window-monitor` — Warns when token usage approaches limits and suggests recovery strategies.
+- `write-existing-file-guard` — Tracks file reads to prevent agents from overwriting files they haven't examined.
+- `rules-injector` — Automatically injects contextual rules when agents enter directories containing AGENTS.md.
+- `first-message-variant` — Applies specific prompt variants on session start for consistent behavior.
+- `keyword-detector` — Detects keywords in messages to trigger behavioral changes or agent switches.
+
+All hooks are enabled by default and can be disabled via the `disabled_hooks` configuration.
+
+### MCP (Model Context Protocol)
+
+Weave supports MCP servers for extended capabilities. Built-in MCPs are:
+
+| MCP Server | Purpose | Type | Default Agents |
+|------------|---------|------|----------------|
+| `websearch` | Web search via Exa AI | Remote | loom, tapestry, weft, warp |
+| `context7` | Library documentation lookup | Remote | loom, tapestry, spindle |
+| `grep_app` | Enhanced code search | Remote | loom, tapestry, thread, spindle, warp, shuttle |
+
+> **Note**: Orchestrator agents (loom, tapestry) get all MCPs by default for maximum capability.
+
+#### Websearch Configuration
+
+The `websearch` MCP uses **EXA's remote MCP server** for web search capabilities. It works out-of-the-box with rate-limited access, but for production use we recommend setting up your EXA API key:
+
+```bash
+# Set EXA API key environment variable
+export EXA_API_KEY="your-exa-api-key"
+```
+
+The plugin automatically detects the `EXA_API_KEY` environment variable and includes it in requests for authenticated access with higher rate limits.
+
+#### Configuration
+
+```jsonc
+{
+  // Enable/disable built-in MCPs
+  "mcp": {
+    "enabled": {
+      "websearch": true,
+      "context7": true,
+      "grep_app": true
+    }
+  },
+  
+  // Custom MCP servers
+  "mcp": {
+    "servers": {
+      "my-server": {
+        "type": "local",
+        "command": ["npx", "-y", "my-mcp-server"],
+        "timeout": 60000
+      }
+    }
+  },
+  
+  // Disable MCPs globally
+  "disabled_mcps": ["websearch"],
+  
+  // Override MCPs per agent
+  "agents": {
+    "thread": {
+      "mcp": ["websearch", "grep_app"]
+    }
+  }
+}
+```
+
+> **MCP Server Types**:
+> - `local` — Runs a local MCP server via command (stdio)
+> - `remote` — Connects to a remote MCP server via HTTP
+
+See [Provider Configurations](./docs/provider-configurations.md) for model recommendations per agent.
+
+### Skills
+
+Skills are injectable prompt expertise loaded from markdown files (SKILL.md). They modify agent behavior by prepending domain-specific instructions to the agent's system prompt.
+
+Skills are discovered across three scopes:
+- `builtin` — Provided by the Weave plugin.
+- `user` — Located in the user's global configuration directory.
+- `project` — Located in the current project's `.opencode/skills/` directory.
+
+### Background Agents
+
+Weave supports parallel asynchronous sub-agent management via the BackgroundManager. This allows Loom to spawn multiple agents simultaneously to handle independent tasks, with configurable concurrency limits to manage API rate limits.
+
+### Tool Permissions
+
+Tool access is controlled per-agent to ensure safety and specialized focus. For example, **Thread** and **Spindle** are strictly read-only; they are denied access to write, edit, and task management tools. These permissions can be customized globally or per-agent in the configuration.
 
 ## Development
 
