@@ -128,11 +128,45 @@ export class ConfigHandler {
       return agentConfig;
     }
 
+    // Build MCP info section for prompt
+    const mcpInfo = this.buildMcpInfoSection(defaults);
+
+    // Append MCP info to prompt if not already present
+    let prompt = agentConfig.prompt || '';
+    if (!prompt.includes('<MCPs>')) {
+      prompt = prompt + '\n\n' + mcpInfo;
+    }
+
     // Apply defaults
     return {
       ...agentConfig,
       mcps: defaults,
+      prompt,
     };
+  }
+
+  /**
+   * Build MCP info section for agent prompt
+   */
+  private buildMcpInfoSection(mcps: string[]): string {
+    const mcpDescriptions: Record<string, string> = {
+      websearch:
+        'Web Search - Search the web for current information (use: websearch_exa)',
+      context7:
+        'Context7 - Search technical documentation (use: context7_query_docs)',
+      grep_app:
+        'Grep.app - Search code examples from GitHub (use: grep_app_search)',
+    };
+
+    const mcpList = mcps
+      .map((mcp) => `- ${mcpDescriptions[mcp] || mcp}`)
+      .join('\n');
+
+    return `<MCPs>
+You have access to the following MCP tools:
+${mcpList}
+Use these tools when you need real-time information, documentation, or code examples.
+</MCPs>`;
   }
 
   /**
