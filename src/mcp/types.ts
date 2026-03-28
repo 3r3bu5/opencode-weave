@@ -9,9 +9,9 @@ export const McpServerConfigSchema = z.object({
   command: z.array(z.string()).optional(),
   args: z.array(z.string()).optional(),
   url: z.string().optional(),
-  headers: z.record(z.string()).optional(),
+  headers: z.record(z.string(), z.string()).optional(),
   oauth: z.boolean().optional(),
-  env: z.record(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
 });
 
 export type McpServerConfig = z.infer<typeof McpServerConfigSchema>;

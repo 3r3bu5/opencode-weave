@@ -4,6 +4,9 @@ import { BUILTIN_COMMANDS } from '../features/builtin-commands';
 import { getAgentMcpDefaults, getMcpServers } from '../mcp';
 import { getAgentDisplayName } from '../shared/agent-display-names';
 
+/** Primary agents that appear in UI - remapped to display name keys */
+const PRIMARY_AGENT_KEYS = new Set(['loom', 'tapestry', 'shuttle']);
+
 /** Input to the config pipeline */
 export interface ConfigPipelineInput {
   pluginConfig: WeaveConfig;
@@ -78,7 +81,11 @@ export class ConfigHandler {
   /**
    * Phase 2: Merge agent overrides from pluginConfig.agents.
    * Exclude agents listed in pluginConfig.disabled_agents.
-   * Remap keys from config keys (e.g., "loom") to display names (e.g., "Loom (Main Orchestrator)").
+   * Remap keys from config keys (e.g., "loom") to display names (e.g., "Ra (Orchestrator)").
+   *
+   * Only primary/all agents (loom, tapestry, shuttle) appear in UI, so only they get
+   * display name keys. Subagents (thread, spindle, pattern, weft, warp) stay as canonical
+   * keys to maintain Task tool compatibility.
    */
   private applyAgentConfig(
     agents: Record<string, AgentConfig>,
@@ -102,9 +109,17 @@ export class ConfigHandler {
       // Apply MCP defaults if not overridden
       const agentWithMcps = this.applyAgentMcpDefaults(name, merged);
 
-      // Remap key to display name for OpenCode UI
-      const displayName = getAgentDisplayName(name);
-      result[displayName] = agentWithMcps;
+      // Handle different agent types:
+      // - Primary agents (loom, tapestry): display name key for UI
+      // - Dual-mode agents (shuttle): display name key only (UI shows Bastet, Task validates shuttle separately)
+      // - Subagents: canonical key (Task tool compatibility)
+      if (PRIMARY_AGENT_KEYS.has(name) || DUAL_MODE_AGENT_KEYS.has(name)) {
+        // Primary and dual-mode agents: display name key for UI
+        result[getAgentDisplayName(name)] = agentWithMcps;
+      } else {
+        // Subagents: canonical key for Task tool compatibility
+        result[name] = agentWithMcps;
+      }
     }
 
     return result;
@@ -157,7 +172,7 @@ export class ConfigHandler {
     // Apply defaults via tools property (OpenCode's way for per-agent MCP)
     return {
       ...agentConfig,
-      tools: { ...agentConfig.tools, ...tools },
+      tools: { ...(agentConfig.tools || {}), ...tools },
       prompt,
     };
   }

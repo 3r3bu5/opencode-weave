@@ -1,6 +1,6 @@
 {
   "name": "@a4hgehad/weave-mcp",
-  "version": "0.9.1",
+  "version": "0.9.5",
   "description": "Weave — lean OpenCode plugin with multi-agent orchestration + MCP support",
   "author": "3r3bu5",
   "license": "MIT",
